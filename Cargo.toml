@@ -6,9 +6,12 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-granne = "0.5.2"
-tempfile = "3.2.0"
-rand = "0.8.4"
-rayon = "1.5.1"
+granne = "0.5"
+rand = "0.8"
+rayon = "1.5"
 num_cpus = "1"
 tokio = { version = "1", features = ["full"] }
+futures = "0.3"
+log = "0.4"
+tempfile = "3"
+fslock = "0.2"
