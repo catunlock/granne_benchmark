@@ -47,14 +47,21 @@ fn main() {
     eprintln!("Building the index - {:?}", t0.elapsed());
     let mut builder = GranneBuilder::new(BuildConfig::default(), elements);
     builder.build();
-
-    eprintln!("Writing index to file - {:?}", t0.elapsed());
-    let mut index_file = tempfile::tempfile().unwrap();
-    builder.write_index(&mut index_file).unwrap();
-
-    eprintln!("Writing elemetns to file - {:?}", t0.elapsed());
-    let mut elements_file = tempfile::tempfile().unwrap();
-    builder.write_elements(&mut elements_file).unwrap();
+    
+    {
+        std::fs::create_dir_all("data").unwrap();
+        let mut index_file = std::fs::File::create("data/index.dat").unwrap();
+        let mut elements_file = std::fs::File::create("data/elements.dat").unwrap();
+    
+        eprintln!("Writing index to file - {:?}", t0.elapsed());
+        builder.write_index(&mut index_file).unwrap();
+    
+        eprintln!("Writing elemetns to file - {:?}", t0.elapsed());
+        builder.write_elements(&mut elements_file).unwrap();    
+    }
+    
+    let index_file = std::fs::File::open("data/index.dat").unwrap();
+    let elements_file = std::fs::File::open("data/elements.dat").unwrap();
 
     eprintln!("loading (memory-mapping) index and vectors - {:?}", t0.elapsed());
     let elements = unsafe { angular::Vectors::from_file(&elements_file).unwrap() };
