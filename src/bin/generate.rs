@@ -44,11 +44,11 @@ fn main() {
     
         std::fs::create_dir_all("data").unwrap();
         let mut index_file = std::fs::OpenOptions::new()
-            .append(true)
+            .write(true)
             .open("data/index.dat")
             .unwrap();
         let mut elements_file = std::fs::OpenOptions::new()
-            .append(true)
+            .write(true)
             .open("data/elements.dat")
             .unwrap();
     
@@ -61,27 +61,25 @@ fn main() {
     
 
 
-    for _ in 0..n_chunks {
+    for i_chunk in 0..n_chunks {
+        eprintln!("Chunk {}/{}", i_chunk, n_chunks);
         
         let elements_file = std::fs::File::open("data/elements.dat").unwrap();
     
-        eprintln!("loading (memory-mapping) index and vectors - {:?}", t0.elapsed());
+        eprintln!("loading (memory-mapping) vectors - {:?}", t0.elapsed());
         let mut elements = unsafe { angular::Vectors::from_file(&elements_file).unwrap() };        
         
-        eprintln!("Inserting vectors into the collection - {:?}", t0.elapsed());
+        eprintln!("Generating vectors in parallel");
         let vectors: Vec<_> = (0..n_vectors/n_chunks).into_par_iter().map(|_| random_vector(n_dim)).collect();
     
+        eprintln!("Inserting vectors into the collection - {:?}", t0.elapsed());
         for v in vectors {
             elements.push(&v);
         }
     
-        
-        eprintln!("Building the index - {:?}", t0.elapsed());
-        let mut index_file = std::fs::File::create("data/index.dat").unwrap();
+        let mut elements_file = std::fs::File::create("data/elements.dat").unwrap();
         let builder = GranneBuilder::new(BuildConfig::default(), elements);
-        eprintln!("Writing index to file - {:?}", t0.elapsed());
-        builder.write_index(&mut index_file).unwrap();
-        eprintln!("Writing elemetns to file - {:?}", t0.elapsed());
+        eprintln!("Writing elements to file - {:?}", t0.elapsed());
         builder.write_elements(&mut elements_file).unwrap();
     }
 
