@@ -1,57 +1,55 @@
 use std::{path::{PathBuf, Path}, time::Instant, fs::File};
 
 use granne::{angular::{self, Vector, Vectors}, GranneBuilder, BuildConfig, Builder, Index};
-use log::{trace, debug};
+use log::{trace, debug, error};
 use tempfile::NamedTempFile;
 use fslock::LockFile;
 
-/*
-        let index_file = std::fs::File::open("data/index.dat").unwrap();
-        let elements_file = std::fs::File::open("data/elements.dat").unwrap();
-    
-        let mut elements = unsafe { angular::Vectors::from_file(&elements_file).unwrap() };
-
-        let vectors: Vec<_> = (0..n_vectors).into_par_iter().map(|_| random_vector(n_dim)).collect();
-    
-        eprintln!("Inserting vectors into the collection");
-        for v in vectors {
-            elements.push(&v);
-        }
-    
-        eprintln!("Building index");
-        let mut builder = GranneBuilder::new(BuildConfig::default(), elements);
-        builder.build()
-*/
+use super::{COMMIT_LOCK_PATH, WRITER_LOCK_PATH, ELEMENTS_PATH, INDEX_PATH, DIRTY_PATH, directory::Location};
 
 pub struct Writer<'a> {
-    location: PathBuf,
+    location: Location,
     elements: angular::Vectors<'a>,
     build_config: BuildConfig,
-    lock: LockFile
+    commit_lock: LockFile,
+    writer_lock: LockFile,
 }
+
+
 
 impl<'a> Writer<'a> {
 
-    pub fn open<T: Into<PathBuf>>(location: T) -> Self {
+    pub fn open<T: Into<PathBuf>>(location: T) -> Result<Self, String> {
 
-        let location = location.into();
-        let elements_path = location.join("elements.dat");
-        let elements_file = std::fs::File::open(elements_path).unwrap();
+        let location = Location(location.into());        
+        let commit_lock = LockFile::open(&location.commit_lock_path()).unwrap();
+        let mut writer_lock = LockFile::open(&location.writer_lock_path()).unwrap();
 
-        let elements = unsafe { angular::Vectors::from_file(&elements_file).unwrap() };
+        if !writer_lock.try_lock().unwrap() {
+            let message = format!("Adquiring lock for Writer on this location: {:?}", &location.path());
+            return Err(message);
+        }
+
+        let elements = Writer::open_elements(location.elements_path());
 
         let build_config = BuildConfig::new()
             .num_neighbors(30)
             .layer_multiplier(15.0)
             .max_search(200);
         
-        let lock = LockFile::open(&location.join("LOCK")).unwrap();
-
-        Writer { 
+        Ok(Writer { 
             location,
             elements,
             build_config,
-            lock
+            commit_lock,
+            writer_lock
+        })
+    }
+
+    fn open_elements<'b, T: Into<PathBuf>>(elements_path: T) -> angular::Vectors<'b> {
+        match File::open(elements_path.into()) {
+            Ok(file) => unsafe { angular::Vectors::from_file(&file).unwrap() },
+            Err(_) => angular::Vectors::new(),
         }
     }
 
@@ -74,21 +72,40 @@ impl<'a> Writer<'a> {
         let tmp_index = self.save_index(&builder);
 
         self.commit_files(tmp_elements, tmp_index);
+        self.set_dirty();
+    }
+
+    fn set_dirty(&self) {
+        match File::create(self.location.dirty_path()) {
+            Ok(_) => debug!("Set dirty file"),
+            Err(e) => error!("Error setting dirty file: {}", e.to_string()),
+        }
     }
 
     fn commit_files(&mut self, tmp_elements: NamedTempFile, tmp_index: NamedTempFile) {
-        self.lock.lock().unwrap();
-        std::fs::create_dir_all(&self.location).unwrap();
-        self.swap_files(tmp_elements.path(), &self.elements_path());
-        self.swap_files(tmp_index.path(), &self.index_path());
-        self.lock.unlock().unwrap()
+        debug!("Adquiring commit lock");
+        self.commit_lock.lock().unwrap();
+        std::fs::create_dir_all(&self.location.path()).unwrap();
+        self.swap_files(tmp_elements.path(), &self.location.elements_path());
+        self.swap_files(tmp_index.path(), &self.location.index_path());
+        debug!("Releasing commit lock");
+        self.commit_lock.unlock().unwrap()
     }
 
     fn swap_files<T: Into<PathBuf>>(&self, orig: T, dest: T) {
         let orig = orig.into();
         let dest = dest.into();
-        std::fs::remove_file(dest.clone()).unwrap();
+        Writer::remove_file(dest.clone());
+        debug!("Moving {:?} -> {:?}", orig, dest);
         std::fs::rename(orig, dest).unwrap();
+    }
+
+    fn remove_file<T: Into<PathBuf>>(path: T) {
+        let path = path.into();
+        match std::fs::remove_file(path.clone()) {
+            Ok(_) => debug!("Removed {:?}", path.clone()),
+            Err(_) => trace!("Remove ignored, {:?} doesn't exist", path),
+        }
     }
 
     fn save_index(&self, builder: &GranneBuilder<Vectors>) -> NamedTempFile {
@@ -115,11 +132,5 @@ impl<'a> Writer<'a> {
         tmpfile
     }
 
-    pub fn elements_path(&self) -> PathBuf {
-        self.location.join("elements.dat")
-    }
 
-    pub fn index_path(&self) -> PathBuf {
-        self.location.join("index.dat")
-    }
 }
