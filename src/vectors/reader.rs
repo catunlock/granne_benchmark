@@ -30,19 +30,17 @@ impl<'a> Reader<'a> {
         })
     }
 
-    pub fn search<T: Into<Vec<f32>>>(&self, query_vector: T) -> Vec<(usize, f32)>{
+    pub fn search(&self, query_vector: &Vector<'static>) -> Vec<(usize, f32)>{
         debug!("Search for vector");
 
         if self.is_dirty() {
             self.reload();
             self.clean_dirty();
         }
-
-        let v = Vector::from(query_vector.into());
-        self.index.borrow().search(&v, self.max_search, self.num_neighbors)
+        self.index.borrow().search(query_vector, self.max_search, self.num_neighbors)
     }
 
-    fn load_index<T: Into<PathBuf>>(index_path: T, elements_path: T) -> Granne<'a, Vectors<'a>> {
+    fn load_index<T: Into<PathBuf>>(index_path: T, elements_path: T) -> Granne<'a, Vectors<'a>> {        
         debug!("Loading (memory-mapping) index and vectors.");
         let index_file = std::fs::File::open(index_path.into()).unwrap();
         let elements_file = std::fs::File::open(elements_path.into()).unwrap();
@@ -51,7 +49,7 @@ impl<'a> Reader<'a> {
         unsafe { Granne::from_file(&index_file, elements.clone()).unwrap() }
     }
 
-    fn is_dirty(&self) -> bool {
+    pub fn is_dirty(&self) -> bool {
         self.location.dirty_path().exists()
     }
 
