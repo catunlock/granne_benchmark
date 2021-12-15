@@ -1,26 +1,12 @@
-use std::{path::PathBuf, io::Read};
-
-use fslock::LockFile;
+use std::{path::PathBuf, cell::{RefCell}};
 use granne::{angular::{self, Vectors, Vector}, Granne};
 
-use crate::vectors::{ELEMENTS_PATH, INDEX_PATH};
-
-use super::{COMMIT_LOCK_PATH, DIRTY_PATH, directory::Location};
-
-/*
-    // max_search controls how extensive the search is
-    eprintln!("Querying a random vector - {:?}", t0.elapsed());
-    let query_vector = random_vector(n_dim);
-    let max_search = 200;
-    let res = index.search(&query_vector, max_search, n_results);
-
-    eprintln!("Found {} - {:?}", res.len(), t0.elapsed());
-*/
+use super::{directory::Location, Lock};
 
 pub struct Reader<'a> {
     location: Location,
-    commit_lock: LockFile,
-    index: Granne<'a, Vectors<'a>>,
+    commit_lock: Lock,
+    index: RefCell<Granne<'a, Vectors<'a>>>,
     max_search: usize,
     num_neighbors: usize
 }
@@ -29,9 +15,11 @@ impl<'a> Reader<'a> {
 
     pub fn open<T: Into<PathBuf>>(location: T) -> Result<Self, String> {
         let location = Location(location.into());     
-        let commit_lock = LockFile::open(&location.commit_lock_path()).unwrap();
+        let commit_lock = Lock::open(&location.commit_lock_path()).unwrap();
 
-        let index = Reader::load_index(location.index_path(), location.elements_path());
+        let index = RefCell::new(
+            Reader::load_index(location.index_path(), location.elements_path())
+        );
 
         Ok(Reader{
             location,
@@ -47,10 +35,11 @@ impl<'a> Reader<'a> {
 
         if self.is_dirty() {
             self.reload();
+            self.clean_dirty();
         }
 
         let v = Vector::from(query_vector.into());
-        self.index.search(&v, self.max_search, self.num_neighbors)
+        self.index.borrow().search(&v, self.max_search, self.num_neighbors)
     }
 
     fn load_index<T: Into<PathBuf>>(index_path: T, elements_path: T) -> Granne<'a, Vectors<'a>> {
@@ -73,11 +62,13 @@ impl<'a> Reader<'a> {
         }
     }
 
-    fn reload(&mut self) {
+    fn reload(&self) {
         debug!("Reloading!");
 
-        self.commit_lock.lock().unwrap();
-        self.index = Reader::load_index(self.location.index_path(), self.location.elements_path());
-        self.commit_lock.unlock().unwrap();
+        self.commit_lock.lock();
+        self.index.replace(
+            Reader::load_index(self.location.index_path(), self.location.elements_path())
+        );
+        self.commit_lock.unlock();
     }
 }
