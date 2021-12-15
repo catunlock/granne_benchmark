@@ -3,16 +3,15 @@ use std::{path::{PathBuf, Path}, time::Instant, fs::File};
 use granne::{angular::{self, Vector, Vectors}, GranneBuilder, BuildConfig, Builder, Index};
 use log::{trace, debug, error};
 use tempfile::NamedTempFile;
-use fslock::LockFile;
 
-use super::{COMMIT_LOCK_PATH, WRITER_LOCK_PATH, ELEMENTS_PATH, INDEX_PATH, DIRTY_PATH, directory::Location};
+use super::{directory::Location, Lock};
 
 pub struct Writer<'a> {
     location: Location,
     elements: angular::Vectors<'a>,
     build_config: BuildConfig,
-    commit_lock: LockFile,
-    writer_lock: LockFile,
+    commit_lock: Lock,
+    writer_lock: Lock,
 }
 
 
@@ -22,11 +21,12 @@ impl<'a> Writer<'a> {
     pub fn open<T: Into<PathBuf>>(location: T) -> Result<Self, String> {
 
         let location = Location(location.into());        
-        let commit_lock = LockFile::open(&location.commit_lock_path()).unwrap();
-        let mut writer_lock = LockFile::open(&location.writer_lock_path()).unwrap();
+        let commit_lock = Lock::open(&location.commit_lock_path()).unwrap();
+        let mut writer_lock = Lock::open(&location.writer_lock_path()).unwrap();
 
-        if !writer_lock.try_lock().unwrap() {
-            let message = format!("Adquiring lock for Writer on this location: {:?}", &location.path());
+        if let Err(e) = writer_lock.try_lock() {
+            let message = format!("Adquiring lock for Writer: {}", e.to_string());
+            error!("{}",message);
             return Err(message);
         }
 
@@ -84,12 +84,12 @@ impl<'a> Writer<'a> {
 
     fn commit_files(&mut self, tmp_elements: NamedTempFile, tmp_index: NamedTempFile) {
         debug!("Adquiring commit lock");
-        self.commit_lock.lock().unwrap();
+        self.commit_lock.lock();
         std::fs::create_dir_all(&self.location.path()).unwrap();
         self.swap_files(tmp_elements.path(), &self.location.elements_path());
         self.swap_files(tmp_index.path(), &self.location.index_path());
         debug!("Releasing commit lock");
-        self.commit_lock.unlock().unwrap()
+        self.commit_lock.unlock();
     }
 
     fn swap_files<T: Into<PathBuf>>(&self, orig: T, dest: T) {

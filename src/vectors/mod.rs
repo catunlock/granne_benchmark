@@ -1,4 +1,3 @@
-
 pub mod reader;
 pub mod writer;
 pub mod directory;
@@ -8,11 +7,11 @@ pub use reader::*;
 pub use writer::*;
 pub use lock::*;
 
-const COMMIT_LOCK_PATH: &str = "LOCK";
-const WRITER_LOCK_PATH: &str = "WRITER";
+const COMMIT_LOCK_PATH: &str = "COMMIT_LOCK";
+const WRITER_LOCK_PATH: &str = "WRITER_LOCK";
 const ELEMENTS_PATH: &str = "elements.dat";
 const INDEX_PATH: &str = "index.dat";
-const DIRTY_PATH: &str = "DIRTY";
+const DIRTY_PATH: &str = "DIRTY_BIT";
 #[cfg(test)]
 mod tests {
     use granne::angular::Vector;

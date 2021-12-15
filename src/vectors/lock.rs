@@ -1,4 +1,4 @@
-use std::{path::PathBuf, fs::File, time::Duration};
+use std::{path::PathBuf, fs::File, time::Duration, os::unix::thread};
 
 pub struct Lock {
     location: PathBuf
@@ -23,7 +23,7 @@ impl Lock {
 
         match File::create(&self.location) {
             Ok(_) => {
-                debug!("Set dirty file {:?}", self.location);
+                debug!("Set lock file {:?}", self.location);
                 Ok(())
             },
             Err(e) => {
@@ -44,16 +44,34 @@ impl Lock {
             Err(_) => trace!("Remove ignored, {:?} doesn't exist", self.location),
         }
     }
+
+    pub fn lock(&self) {
+        debug!("Triying to lock: {:?}", self.location);
+        while self.is_locked() {
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        self.try_lock().unwrap();
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    use std::{path::PathBuf, time::Duration, os::unix::thread};
 
+    use log::LevelFilter;
     use rand::{distributions::Alphanumeric, Rng};
     use tempfile::NamedTempFile;
+    use tokio::time::Instant;
+    use futures::join;
 
     use super::Lock;
+
+    fn init() {
+        let _ = env_logger::builder()
+            .filter_level(LevelFilter::Trace)
+            .is_test(true)
+            .try_init();
+    }
 
     fn get_random_string(length: usize) -> String {
         rand::thread_rng()
@@ -119,5 +137,35 @@ mod tests {
         let temp_file = "/tmp/this_dir_doesnt_exists/lock";
         let lock = Lock::open(&temp_file);
         assert!(lock.is_err());
+    }
+
+    #[test]
+    fn multithreaded_lock() {
+        init();
+        let temp_file = get_temp_path();
+        let lock1 = Lock::open(&temp_file).unwrap();
+        let lock2 = Lock::open(&temp_file).unwrap();
+
+        let t1 = std::thread::spawn(move || {
+            // Task with a lot of work to do.
+            assert!(lock1.try_lock().is_ok());
+            info!("Job start");
+            std::thread::sleep(Duration::from_millis(1000));
+            info!("Job done");
+            lock1.unlock();
+        });
+
+        let t2 = std::thread::spawn(move || {
+            let time0 = Instant::now();
+            // Task that waits for the other to finish.
+            std::thread::sleep(Duration::from_millis(100));
+            lock2.lock(); // Lock has to wait 3 seconds to the other task to finish.
+            info!("Finally I managed to get some work done. {:?}", time0.elapsed());
+            assert!(time0.elapsed() > Duration::from_secs(1));
+
+        });
+
+        t1.join().unwrap();
+        t2.join().unwrap();
     }
 }
