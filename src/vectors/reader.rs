@@ -40,6 +40,17 @@ impl<'a> Reader<'a> {
         self.index.borrow().search(query_vector, self.max_search, self.num_neighbors)
     }
 
+    pub fn search_vec(&self, query_vector: Vec<f32>) -> Vec<(Vector, f32)> {
+        let query_vector = Vector::from_iter(query_vector.into_iter());
+        self.get_vectors(&self.search(&query_vector))
+    }
+
+    fn get_vectors(&self, results: &Vec<(usize, f32)>) -> Vec<(Vector, f32)> {
+         results.iter().map(|(vec_id, score)| {
+            (self.index.borrow().get_element(*vec_id), *score)
+         }).collect()   
+    }
+
     fn load_index<T: Into<PathBuf>>(index_path: T, elements_path: T) -> Granne<'a, Vectors<'a>> {        
         debug!("Loading (memory-mapping) index and vectors.");
         let index_file = std::fs::File::open(index_path.into()).unwrap();

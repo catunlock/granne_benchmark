@@ -19,7 +19,7 @@ fn main() {
         .parse()
         .unwrap();
     let n_vectors: usize = env::var("N_VECTORS")
-        .unwrap_or("8000000".to_string())
+        .unwrap_or("2000000".to_string())
         .parse()
         .unwrap();
     let n_results: usize = env::var("N_RESULTS")

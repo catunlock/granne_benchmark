@@ -1,5 +1,5 @@
 [package]
-name = "granne_benchmark"
+name = "nuclia_vectors"
 version = "0.1.0"
 edition = "2021"
 
@@ -15,6 +15,7 @@ futures = "0.3"
 log = "0.4"
 tempfile = "3"
 fslock = "0.2"
+memmap = "0.7.0"
 
 [dev-dependencies]
 env_logger = "0.9.0"

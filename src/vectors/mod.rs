@@ -2,10 +2,12 @@ pub mod reader;
 pub mod writer;
 pub mod directory;
 pub mod lock;
+pub mod deleted;
 
 pub use reader::*;
 pub use writer::*;
 pub use lock::*;
+pub use deleted::*;
 
 const COMMIT_LOCK_PATH: &str = "COMMIT_LOCK";
 const WRITER_LOCK_PATH: &str = "WRITER_LOCK";
@@ -108,7 +110,7 @@ mod tests {
 
         let t_writer = std::thread::spawn( || {
             let mut writer = Writer::open(tmp1).unwrap();
-            for i in 0..1_000_000 {
+            for i in 0..500 {
                 writer.push(&create_vector(3, i as f32));
                 writer.commit();
             }
@@ -117,7 +119,7 @@ mod tests {
         let t_reader = std::thread::spawn( || {
             std::thread::sleep(Duration::from_millis(100));
             let reader = Reader::open(tmp2).unwrap();
-            for i in 0..1_000_000 {
+            for i in 0..500 {
                 reader.search(&create_vector(3, 3.0));
             }
         });
