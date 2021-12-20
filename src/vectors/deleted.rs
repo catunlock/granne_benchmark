@@ -1,74 +1,52 @@
-use std::{path::PathBuf, fs::{File, OpenOptions}, io::{self, Write, Read}, ops::DerefMut, fmt::Debug};
+use std::{path::PathBuf, fs::{File, OpenOptions}, io::{self, Write, Read, SeekFrom, Seek}, 
+ops::DerefMut, fmt::Debug};
 
 use memmap::{Mmap, MmapMut};
 
 
 pub struct DeletedFile {
-    location: PathBuf,
-    mmap: MmapMut,
-    vector: Vec<u32>
+    file: File,
 }
 
 impl DeletedFile {
     pub fn open<T: Into<PathBuf>>(location: T) -> Result<Self, io::Error> {
         let location = location.into();
 
+        debug!("Opening DeletedFile at: {:?}", &location);
         let file = OpenOptions::new()
-            .read(true)
             .append(true)
-            .create(true)
+            .read(true)
             .write(true)
+            .create(true)
             .open(location.clone())?;
 
-        debug!("Opening Mmap file at: {:?}", &location);
-        let mmap = unsafe { Mmap::map(&file) };
-        let mmap = match mmap {
-            Ok(mmap) => mmap.make_mut()?,
-            Err(e) => {
-                error!("Error opening mmap: {}", e.to_string());
-                todo!("Find a way to create a empty Mmap")
-            }
-        };
-
-        let vector = match bincode::deserialize(&mmap) {
-            Ok(v) => v,
-            Err(e) => {
-                error!("Decoding vector stored in file: {}", e.to_string());
-                Vec::new()
-            },
-        };
-
         Ok(DeletedFile {
-            location,
-            mmap: mmap,
-            vector
+            file
         })
     }
 
-    pub fn search(&self, idx: u32) -> bool {
-        let bin_idx = bincode::serialize(&idx).unwrap();
-
-        let iter = self.mmap.chunks(4);
-        for chunk in iter {
-            if chunk == bin_idx {
-                return true;
+    pub fn search(&mut self, idx: u32) -> Result<bool, io::Error> {
+        let mut buf = [0u8; 4];
+        self.file.seek(SeekFrom::Start(0))?;
+        
+        trace!("Searching for: {}", idx);
+        while self.file.read_exact(&mut buf).is_ok() {
+            let idx_file: u32 = bincode::deserialize(&buf).unwrap();
+            trace!("\tfound: {}", idx_file);
+            if idx_file == idx {
+                trace!("Founded!");
+                return Ok(true);
             }
         }
-        return false;
+        return Ok(false);
     }
 
     pub fn append(&mut self, idx: u32) -> Result<(), io::Error> {
-        
-        let mut bin = bincode::serialize(&idx).unwrap().as_slice();
-
-        let mmap = self.mmap.deref_mut();
-        mmap = [*mmap, *bin].concat();
+        let bin = bincode::serialize(&idx).unwrap();
+        self.file.seek(SeekFrom::End(0))?;
+        self.file.write_all(&bin)?;
+        self.file.flush()?;
         Ok(())
-    }
-
-    pub fn flush(&mut self) -> Result<(), io::Error> {
-        let mut_mmap = self.mmap.make_mut()?;
-        mut_mmap.flush()
     }
 }
 
@@ -94,14 +72,15 @@ mod test {
     #[test]
     fn add_and_search() {
         init();
-        let mut deleted = DeletedFile::open("deleted.hex").unwrap();
+        let tempfile = tempfile::NamedTempFile::new().unwrap();
+        let mut deleted = DeletedFile::open(tempfile.path()).unwrap();
 
         deleted.append(1).unwrap();
-        assert!(deleted.search(1));
-
+        deleted.append(2).unwrap();
         deleted.append(3).unwrap();
-        
-        deleted.flush().unwrap();
-        
+        deleted.append(256).unwrap();
+
+        assert!(deleted.search(1).unwrap());
+        assert!(deleted.search(256).unwrap());
     }
 }
