@@ -1,26 +1,27 @@
 use std::{path::PathBuf, fs::{File, OpenOptions}, io::{self, Write, Read, SeekFrom, Seek}, 
-ops::DerefMut, fmt::Debug};
+ops::DerefMut, fmt::Debug, collections::HashSet, hash::Hash};
 
 use memmap::{Mmap, MmapMut};
 
 
-pub struct DeletedFile {
+pub struct DeletedFileReader {
     file: File,
 }
 
-impl DeletedFile {
+pub struct DeletedFileWriter {
+    file: File,
+}
+
+impl DeletedFileReader {
     pub fn open<T: Into<PathBuf>>(location: T) -> Result<Self, io::Error> {
         let location = location.into();
 
-        debug!("Opening DeletedFile at: {:?}", &location);
+        debug!("Opening DeletedFile Reader at: {:?}", &location);
         let file = OpenOptions::new()
-            .append(true)
             .read(true)
-            .write(true)
-            .create(true)
             .open(location.clone())?;
 
-        Ok(DeletedFile {
+        Ok(DeletedFileReader {
             file
         })
     }
@@ -41,6 +42,59 @@ impl DeletedFile {
         return Ok(false);
     }
 
+    pub fn len(&self) -> usize {
+        (self.file.metadata().unwrap().len() / (u32::BITS /8) as u64).try_into().unwrap()
+    }
+
+    pub fn iter(&self) -> &Self {
+        self
+    }
+}
+
+impl Iterator for DeletedFileReader {
+    type Item = u32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut buf = [0u8; 4];
+        match self.file.read_exact(&mut buf) {
+            Ok(()) => {
+                match bincode::deserialize(&buf) {
+                    Ok(value) => Some(value),
+                    Err(_) => None,
+                }
+            }
+            Err(_) => None,
+        }
+    }
+}
+
+impl From<DeletedFileReader> for HashSet<u32> {
+    fn from(reader: DeletedFileReader) -> Self {
+        let mut set = HashSet::with_capacity(reader.len());
+        for idx in reader {
+            set.insert(idx);
+        }
+        set
+    }
+}
+
+impl DeletedFileWriter {
+    pub fn open<T: Into<PathBuf>>(location: T) -> Result<Self, io::Error> {
+        let location = location.into();
+
+        debug!("Opening DeletedFile Writer at: {:?}", &location);
+        let file = OpenOptions::new()
+            .append(true)
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(location.clone())?;
+
+        Ok(DeletedFileWriter {
+            file
+        })
+    }
+
     pub fn append(&mut self, idx: u32) -> Result<(), io::Error> {
         let bin = bincode::serialize(&idx).unwrap();
         self.file.seek(SeekFrom::End(0))?;
@@ -50,11 +104,14 @@ impl DeletedFile {
     }
 }
 
+
 #[cfg(test)]
 mod test {
+    use std::collections::HashSet;
+
     use log::LevelFilter;
 
-    use super::DeletedFile;
+    use super::{DeletedFileReader, DeletedFileWriter};
 
     fn init() {
         let _ = env_logger::builder()
@@ -73,14 +130,59 @@ mod test {
     fn add_and_search() {
         init();
         let tempfile = tempfile::NamedTempFile::new().unwrap();
-        let mut deleted = DeletedFile::open(tempfile.path()).unwrap();
+        let mut writer = DeletedFileWriter::open(tempfile.path()).unwrap();
+        let mut reader = DeletedFileReader::open(tempfile.path()).unwrap();
 
-        deleted.append(1).unwrap();
-        deleted.append(2).unwrap();
-        deleted.append(3).unwrap();
-        deleted.append(256).unwrap();
+        writer.append(1).unwrap();
+        writer.append(2).unwrap();
+        writer.append(3).unwrap();
+        writer.append(256).unwrap();
 
-        assert!(deleted.search(1).unwrap());
-        assert!(deleted.search(256).unwrap());
+        assert!(reader.search(1).unwrap());
+        assert!(reader.search(256).unwrap());
+    }
+
+    #[test]
+    fn concurrent_read_and_write() {
+        init();
+        let tempfile = tempfile::NamedTempFile::new().unwrap();
+        let mut writer = DeletedFileWriter::open(tempfile.path()).unwrap();
+        let mut reader = DeletedFileReader::open(tempfile.path()).unwrap();
+
+        let j1 = std::thread::spawn(move || {
+            for i in 0..1_000 {
+                writer.append(i).unwrap();
+            }
+        });
+
+        let j2 = std::thread::spawn(move || {
+            for i in 0..1_000 {
+                assert!(reader.search(i).unwrap());
+            }
+        });
+
+        j1.join().unwrap();
+        j2.join().unwrap();
+    }
+
+    #[test]
+    fn find_in_set() {
+        init();
+        let tempfile = tempfile::NamedTempFile::new().unwrap();
+        let mut writer = DeletedFileWriter::open(tempfile.path()).unwrap();
+        let reader = DeletedFileReader::open(tempfile.path()).unwrap();
+
+        writer.append(1).unwrap();
+        writer.append(2).unwrap();
+        writer.append(3).unwrap();
+        writer.append(256).unwrap();
+
+        let set = HashSet::from(reader);
+        assert!(set.contains(&1));
+        assert!(set.contains(&2));
+        assert!(set.contains(&3));
+        assert!(set.contains(&256));
+
+        info!("Contains 256: {}", set.contains(&256));
     }
 }
