@@ -3,7 +3,6 @@ ops::DerefMut, fmt::Debug, collections::HashSet, hash::Hash};
 
 use memmap::{Mmap, MmapMut};
 
-
 pub struct DeletedFileReader {
     file: File,
 }
@@ -26,7 +25,7 @@ impl DeletedFileReader {
         })
     }
 
-    pub fn search(&mut self, idx: u32) -> Result<bool, io::Error> {
+    pub fn contains(&mut self, idx: u32) -> Result<bool, io::Error> {
         let mut buf = [0u8; 4];
         self.file.seek(SeekFrom::Start(0))?;
         
@@ -44,10 +43,6 @@ impl DeletedFileReader {
 
     pub fn len(&self) -> usize {
         (self.file.metadata().unwrap().len() / (u32::BITS /8) as u64).try_into().unwrap()
-    }
-
-    pub fn iter(&self) -> &Self {
-        self
     }
 }
 
@@ -138,8 +133,8 @@ mod test {
         writer.append(3).unwrap();
         writer.append(256).unwrap();
 
-        assert!(reader.search(1).unwrap());
-        assert!(reader.search(256).unwrap());
+        assert!(reader.contains(1).unwrap());
+        assert!(reader.contains(256).unwrap());
     }
 
     #[test]
@@ -157,7 +152,7 @@ mod test {
 
         let j2 = std::thread::spawn(move || {
             for i in 0..1_000 {
-                assert!(reader.search(i).unwrap());
+                assert!(reader.contains(i).unwrap());
             }
         });
 

@@ -3,17 +3,21 @@ pub mod writer;
 pub mod directory;
 pub mod lock;
 pub mod deleted;
+pub mod deleted_db;
 
 pub use reader::*;
 pub use writer::*;
 pub use lock::*;
 pub use deleted::*;
+pub use deleted_db::*;
 
 const COMMIT_LOCK_PATH: &str = "COMMIT_LOCK";
 const WRITER_LOCK_PATH: &str = "WRITER_LOCK";
 const ELEMENTS_PATH: &str = "elements.dat";
 const INDEX_PATH: &str = "index.dat";
 const DIRTY_PATH: &str = "DIRTY_BIT";
+const DELETED_PATH: &str = "deleted.dat";
+
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
