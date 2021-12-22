@@ -4,15 +4,16 @@ use granne::{angular::{self, Vector, Vectors}, GranneBuilder, BuildConfig, Build
 use log::{trace, debug, error};
 use tempfile::NamedTempFile;
 
-use super::{directory::Location, Lock, DeletedDBWriter};
+use super::{directory::Location, Lock, DeletedDBWriter, IndexMap};
 
 pub struct Writer<'a> {
     location: Location,
     elements: angular::Vectors<'a>,
     build_config: BuildConfig,
     commit_lock: Lock,
-    writer_lock: Lock,
-    deleted: DeletedDBWriter<'a>
+    _writer_lock: Lock,
+    deleted: DeletedDBWriter<'a>,
+    index_map: IndexMap<'a>
 }
 
 
@@ -23,9 +24,9 @@ impl<'a> Writer<'a> {
 
         let location = Location(location.into());        
         let commit_lock = Lock::open(&location.commit_lock_path()).unwrap();
-        let mut writer_lock = Lock::open(&location.writer_lock_path()).unwrap();
+        let mut _writer_lock = Lock::open(&location.writer_lock_path()).unwrap();
 
-        if let Err(e) = writer_lock.try_lock() {
+        if let Err(e) = _writer_lock.try_lock() {
             let message = format!("Adquiring lock for Writer: {}", e.to_string());
             error!("{}",message);
             return Err(message);
@@ -41,13 +42,17 @@ impl<'a> Writer<'a> {
         let deleted_path = location.deleted_path();
         let deleted = DeletedDBWriter::open(deleted_path.to_str().unwrap()).unwrap();
         
+        let index_map_path = location.index_map_path();
+        let index_map = IndexMap::open(index_map_path.to_str().unwrap()).unwrap();
+
         Ok(Writer { 
             location,
             elements,
             build_config,
             commit_lock,
-            writer_lock,
-            deleted
+            _writer_lock,
+            deleted,
+            index_map
         })
     }
 
@@ -58,9 +63,37 @@ impl<'a> Writer<'a> {
         }
     }
 
-    pub fn push(&mut self, vector: &Vector) {
-        trace!("Pushing vector");
-        self.elements.push(vector);
+    pub fn push(&mut self, doc_id: usize, vector: &Vector) -> Result<(), String> {
+        trace!("Pushing vector for doc: {}", doc_id);
+        match self.index_map.insert(doc_id, self.next_idx()) {
+            Ok(()) => {
+                self.elements.push(vector);
+                Ok(())
+            },
+            Err(e) => {
+                error!("Error maping vector for document: {}", e.to_string());
+                Err(e.to_string())
+            }
+        }
+    }
+
+    pub fn delete(&self, doc_id: usize) -> Result<(), String> {
+        trace!("Marking all vectors of doc {} as deleted", doc_id);
+        match self.index_map.get(doc_id) {
+            Ok(vec_ids) => {
+                match self.deleted.add_batch(vec_ids.into_iter()) {
+                    Ok(()) => Ok(()),
+                    Err(e) => {
+                        error!("Error adding vectors to deleted indexes database: {}", e.to_string());
+                        Err(e.to_string())
+                    },
+                }
+            },
+            Err(e) => {
+                error!("Error obtaining the indexes of the vectors of the document {}: {}", doc_id, e.to_string());
+                Err(e.to_string())
+            },
+        }
     }
 
     pub fn commit(&mut self) {
