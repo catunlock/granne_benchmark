@@ -25,7 +25,7 @@ impl<'a> DeletedDBReader<'a> {
         })
     }
 
-    pub fn contains(&self, idx: u32) -> Result<bool, lmdb::Error> {
+    pub fn contains(&self, idx: usize) -> Result<bool, lmdb::Error> {
         trace!("Check if contains: {}", idx);
         let key = bincode::serialize(&idx).unwrap();
         let env = self.db.env();
@@ -64,7 +64,7 @@ impl<'a> DeletedDBWriter<'a> {
         })
     }
 
-    pub fn add(&self, idx: u32) -> Result<(), lmdb::Error> {
+    pub fn add(&self, idx: usize) -> Result<(), lmdb::Error> {
         trace!("Add: {:?}", idx);
         let env = self.db.env();
         let txn = lmdb::WriteTransaction::new(env)?;
@@ -77,7 +77,7 @@ impl<'a> DeletedDBWriter<'a> {
         Ok(())
     }
 
-    pub fn add_batch(&self, idxs: impl Iterator<Item = u32>) -> Result<(), lmdb::Error> {
+    pub fn add_batch(&self, idxs: impl Iterator<Item = usize>) -> Result<(), lmdb::Error> {
         trace!("Adding batch");
         let env = self.db.env();
         let txn = lmdb::WriteTransaction::new(env)?;

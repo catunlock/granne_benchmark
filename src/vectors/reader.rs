@@ -1,14 +1,15 @@
-use std::{path::PathBuf, cell::{RefCell}};
+use std::{path::PathBuf, cell::{RefCell}, collections::HashSet, ops::RangeBounds};
 use granne::{angular::{self, Vectors, Vector}, Granne};
 
-use super::{directory::Location, Lock};
+use super::{directory::Location, Lock, DeletedDBReader};
 
 pub struct Reader<'a> {
     location: Location,
     commit_lock: Lock,
     index: RefCell<Granne<'a, Vectors<'a>>>,
     max_search: usize,
-    num_neighbors: usize
+    num_neighbors: usize,
+    deleted: DeletedDBReader<'a>
 }
 
 impl<'a> Reader<'a> {
@@ -21,12 +22,16 @@ impl<'a> Reader<'a> {
             Reader::load_index(location.index_path(), location.elements_path())
         );
 
+        let deleted_path = location.deleted_path();
+        let deleted = DeletedDBReader::open(deleted_path.to_str().unwrap()).unwrap();
+
         Ok(Reader{
             location,
             commit_lock,
             index,
             max_search: 200,
-            num_neighbors: 30
+            num_neighbors: 30,
+            deleted
         })
     }
 
@@ -37,7 +42,16 @@ impl<'a> Reader<'a> {
             self.reload();
             self.clean_dirty();
         }
-        self.index.borrow().search(query_vector, self.max_search, self.num_neighbors)
+
+        // let deleted_set = HashSet::from(self.deleted);
+
+        let raw_results = self.index.borrow().search(query_vector, self.max_search, self.num_neighbors);
+
+        raw_results.into_iter().filter(|(idx, _)| {
+            self.deleted.contains(*idx).unwrap()
+        }).collect()
+
+    
     }
 
     pub fn search_vec(&self, query_vector: Vec<f32>) -> Vec<(Vector, f32)> {

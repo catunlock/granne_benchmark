@@ -4,7 +4,7 @@ use granne::{angular::{self, Vector, Vectors}, GranneBuilder, BuildConfig, Build
 use log::{trace, debug, error};
 use tempfile::NamedTempFile;
 
-use super::{directory::Location, Lock};
+use super::{directory::Location, Lock, DeletedDBWriter};
 
 pub struct Writer<'a> {
     location: Location,
@@ -12,6 +12,7 @@ pub struct Writer<'a> {
     build_config: BuildConfig,
     commit_lock: Lock,
     writer_lock: Lock,
+    deleted: DeletedDBWriter<'a>
 }
 
 
@@ -36,13 +37,17 @@ impl<'a> Writer<'a> {
             .num_neighbors(30)
             .layer_multiplier(15.0)
             .max_search(200);
+
+        let deleted_path = location.deleted_path();
+        let deleted = DeletedDBWriter::open(deleted_path.to_str().unwrap()).unwrap();
         
         Ok(Writer { 
             location,
             elements,
             build_config,
             commit_lock,
-            writer_lock
+            writer_lock,
+            deleted
         })
     }
 
