@@ -1,4 +1,4 @@
-use std::{path::PathBuf, cell::{RefCell}, collections::HashSet, ops::RangeBounds};
+use std::{path::PathBuf, cell::{RefCell}, collections::{HashSet, HashMap}, ops::RangeBounds};
 use granne::{angular::{self, Vectors, Vector}, Granne};
 
 use super::{directory::Location, Lock, DeletedDBReader};
@@ -43,15 +43,16 @@ impl<'a> Reader<'a> {
             self.clean_dirty();
         }
 
-        // let deleted_set = HashSet::from(self.deleted);
-
         let raw_results = self.index.borrow().search(query_vector, self.max_search, self.num_neighbors);
+        let idxs: Vec<usize> = raw_results.iter().map(|(idx, score)| *idx).collect();
+        let idxs = self.deleted.filter(&idxs).unwrap();
 
-        raw_results.into_iter().filter(|(idx, _)| {
-            self.deleted.contains(*idx).unwrap()
+        let raw_results: HashMap<usize, f32> = raw_results.into_iter().collect();
+
+        idxs.into_iter().map(|idx| {
+            let score = raw_results.get(&idx).unwrap();
+            (idx, *score)
         }).collect()
-
-    
     }
 
     pub fn search_vec(&self, query_vector: Vec<f32>) -> Vec<(Vector, f32)> {
