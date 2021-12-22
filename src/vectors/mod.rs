@@ -61,19 +61,19 @@ mod tests {
         let tmpdir = TempDir::new().unwrap();
         let mut writer = Writer::open(tmpdir.path()).unwrap();
 
-        writer.push(&create_vector(3, 1.0));
-        writer.push(&create_vector(3, 2.0));
-        writer.push(&create_vector(3, 3.0));
+        writer.push(1,&create_vector(3, 1.0)).unwrap();
+        writer.push(1,&create_vector(3, 2.0)).unwrap();
+        writer.push(1,&create_vector(3, 3.0)).unwrap();
 
         writer.commit();
 
-        writer.push(&create_vector(3, 4.0));
-        writer.push(&create_vector(3, 5.0));
+        writer.push(2, &create_vector(3, 4.0)).unwrap();
+        writer.push(2, &create_vector(3, 5.0)).unwrap();
 
         writer.commit();
 
-        writer.push(&create_vector(3, 6.0));
-        writer.push(&create_vector(3, 7.0));
+        writer.push(3, &create_vector(3, 6.0)).unwrap();
+        writer.push(3, &create_vector(3, 7.0)).unwrap();
 
         writer.commit();
     }
@@ -85,9 +85,9 @@ mod tests {
         let tmpdir = TempDir::new().unwrap();
         let mut writer = Writer::open(tmpdir.path()).unwrap();
 
-        writer.push(&create_vector(3, 1.0));
-        writer.push(&create_vector(3, 2.0));
-        writer.push(&create_vector(3, 3.0));
+        writer.push(1, &create_vector(3, 1.0)).unwrap();
+        writer.push(1, &create_vector(3, 2.0)).unwrap();
+        writer.push(1, &create_vector(3, 3.0)).unwrap();
 
         writer.commit();
 
@@ -95,9 +95,9 @@ mod tests {
         let res = reader.search(&create_vector(3, 1.0));
         info!("Results: {:?}", res);
 
-        writer.push(&create_vector(3, 4.0));
-        writer.push(&create_vector(3, 5.0));
-        writer.push(&create_vector(3, 6.0));
+        writer.push(2, &create_vector(3, 4.0)).unwrap();
+        writer.push(2, &create_vector(3, 5.0)).unwrap();
+        writer.push(2, &create_vector(3, 6.0)).unwrap();
 
         writer.commit();
 
@@ -116,7 +116,7 @@ mod tests {
         let t_writer = std::thread::spawn( || {
             let mut writer = Writer::open(tmp1).unwrap();
             for i in 0..500 {
-                writer.push(&create_vector(3, i as f32));
+                writer.push(1, &create_vector(3, i as f32)).unwrap();
                 writer.commit();
             }
         });
@@ -124,12 +124,12 @@ mod tests {
         let t_reader = std::thread::spawn( || {
             std::thread::sleep(Duration::from_millis(100));
             let reader = Reader::open(tmp2).unwrap();
-            for i in 0..500 {
+            for _ in 0..500 {
                 reader.search(&create_vector(3, 3.0));
             }
         });
 
-        t_writer.join();
-        t_reader.join();
+        t_writer.join().unwrap();
+        t_reader.join().unwrap();
     }
 }
