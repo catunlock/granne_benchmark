@@ -137,5 +137,37 @@ impl<'a> Writer<'a> {
         tmpfile
     }
 
+    fn next_idx(&self) -> usize {
+        self.elements.len()
+    }
 
+}
+
+#[cfg(test)]
+mod test {
+    use granne::angular::{self, Vector};
+
+    fn create_vector(n_dim: usize, u: f32) -> Vector<'static> {
+        Vector((0..n_dim).map(|_| u).collect())
+    }
+
+    #[test]
+    fn indices() {
+        // This test show and checks the behaviour of the elements collection regarding the id matching
+        // of the elements inserted.
+        let mut elements = angular::Vectors::new();
+        let mut idxs: Vec<usize> = Vec::new();
+
+        idxs.push(elements.len());
+        elements.push(&create_vector(3, 0.0));
+        idxs.push(elements.len());
+        elements.push(&create_vector(3, 1.0));
+        idxs.push(elements.len());
+        elements.push(&create_vector(3, 2.0));
+
+
+        assert_eq!(elements.get_element(0).0[0], 0.0);
+        assert_eq!(elements.get_element(1).0[1], 1.0);
+        assert_eq!(elements.get_element(2).0[2], 2.0);
+    }
 }
