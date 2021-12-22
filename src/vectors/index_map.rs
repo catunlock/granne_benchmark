@@ -56,7 +56,7 @@ impl<'a> IndexMap<'a> {
 
     /// Adds a new internal vec_id to the list of associated vectors of a document.
     pub fn insert(&self, doc_id: usize, vec_id: usize) -> Result<(), lmdb::Error> {
-        trace!("Add: {} -> {}", doc_id, vec_id);
+        trace!("Add doc_id {} -> vec_id {}", doc_id, vec_id);
         let env = self.db.env();
         let txn = lmdb::WriteTransaction::new(env)?;
         let flags = lmdb::put::Flags::empty();
@@ -97,6 +97,22 @@ mod test {
             .is_test(true)
             .try_init();
     }
+
+    #[test]
+    fn insert() {
+        init();
+
+        let tempdir = tempdir().unwrap();
+        let path = tempdir.path().to_str().unwrap();
+        let map = IndexMap::open(path).unwrap();
+
+        map.insert(0, 0).unwrap();
+        map.insert(1, 4).unwrap();
+
+        assert_eq!(map.get(0).unwrap(), vec![0]);
+        assert_eq!(map.get(1).unwrap(), vec![4]);
+    }
+
 
     #[test]
     fn insert_dup() {
