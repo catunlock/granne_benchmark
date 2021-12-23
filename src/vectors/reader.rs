@@ -1,7 +1,7 @@
 use std::{path::PathBuf, cell::{RefCell}, collections::{HashSet, HashMap}, ops::RangeBounds};
 use granne::{angular::{self, Vectors, Vector}, Granne};
 
-use super::{directory::Location, Lock, DeletedDBReader};
+use super::{directory::Location, Lock, DeletedDBReader, IndexMap};
 
 pub struct Reader<'a> {
     location: Location,
@@ -9,7 +9,8 @@ pub struct Reader<'a> {
     index: RefCell<Granne<'a, Vectors<'a>>>,
     max_search: usize,
     num_neighbors: usize,
-    deleted: DeletedDBReader<'a>
+    deleted: DeletedDBReader<'a>,
+    index_map: IndexMap<'a>
 }
 
 impl<'a> Reader<'a> {
@@ -25,13 +26,17 @@ impl<'a> Reader<'a> {
         let deleted_path = location.deleted_path();
         let deleted = DeletedDBReader::open(deleted_path.to_str().unwrap()).unwrap();
 
+        let index_map_path = location.index_map_path();
+        let index_map = IndexMap::open(index_map_path.to_str().unwrap()).unwrap();
+
         Ok(Reader{
             location,
             commit_lock,
             index,
             max_search: 200,
             num_neighbors: 30,
-            deleted
+            deleted,
+            index_map
         })
     }
 

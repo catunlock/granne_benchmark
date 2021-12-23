@@ -79,7 +79,7 @@ impl<'a> Writer<'a> {
 
     pub fn delete(&self, doc_id: usize) -> Result<(), String> {
         trace!("Marking all vectors of doc {} as deleted", doc_id);
-        match self.index_map.get(doc_id) {
+        match self.index_map.get_vec_ids(doc_id) {
             Ok(vec_ids) => {
                 match self.deleted.add_batch(vec_ids.into_iter()) {
                     Ok(()) => Ok(()),
