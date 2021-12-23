@@ -69,7 +69,6 @@ impl<'a> IndexMap<'a> {
 
     /// Returns all the internal vectors ids for a document.
     pub fn get_doc_id(&self, vec_id: usize) -> Result<usize, lmdb::Error> {
-        trace!("Obtaining doc_id of the vector: {}", vec_id);
         let key = bincode::serialize(&vec_id).unwrap();
 
         let env = self.db_inverted.env();
@@ -103,6 +102,33 @@ impl<'a> IndexMap<'a> {
 
         IndexMap::insert_at(&self.db, &key, &val)?;
         IndexMap::insert_at(&self.db_inverted, &val, &key)?;
+
+        Ok(())
+    }
+
+    fn insert_at_batch(db: &Database, key: &[usize], val: &[usize]) -> Result<(), lmdb::Error> {
+        let env = db.env();
+        let txn = lmdb::WriteTransaction::new(env)?;
+        let flags = lmdb::put::Flags::empty();
+        {
+            let mut access = txn.access();
+            
+            for i in 0..key.len() {
+                let key = bincode::serialize(&key[i]).unwrap();
+                let val = bincode::serialize(&val[i]).unwrap();
+                access.put::<[u8], [u8]>(&db, &key, &val, flags)?;
+            }
+            
+        }
+        txn.commit()?;
+        Ok(())
+    }
+
+    /// Adds a new internal vec_id to the list of associated vectors of a document.
+    pub fn insert_batch(&self, doc_ids: &[usize], vec_ids: &[usize]) -> Result<(), lmdb::Error> {
+        assert_eq!(doc_ids.len(), vec_ids.len());
+        IndexMap::insert_at_batch(&self.db, doc_ids, vec_ids)?;
+        IndexMap::insert_at_batch(&self.db_inverted, &vec_ids, &doc_ids)?;
 
         Ok(())
     }
@@ -211,5 +237,34 @@ mod test {
 
         map.delete(1).unwrap();
         assert!(map.get_vec_ids(1).unwrap().is_empty());
+    }
+
+    #[test]
+    fn insert_batch() {
+        init();
+
+        let tempdir = tempdir().unwrap();
+        let path = tempdir.path().to_str().unwrap();
+        let map = IndexMap::open(path).unwrap();
+
+        /*
+        map.insert(0, 0).unwrap();
+        map.insert(0, 1).unwrap();
+        map.insert(0, 2).unwrap();
+        map.insert(1, 3).unwrap();
+        map.insert(1, 4).unwrap();
+        */
+        map.insert_batch(&[0,0,0,1,1], &[0,1,2,3,4]);
+
+        
+        assert_eq!(map.get_vec_ids(0).unwrap(), vec![0,1,2]);
+        assert_eq!(map.get_vec_ids(1).unwrap(), vec![3,4]);
+
+        assert_eq!(map.get_doc_id(0).unwrap(), 0);
+        assert_eq!(map.get_doc_id(1).unwrap(), 0);
+        assert_eq!(map.get_doc_id(2).unwrap(), 0);
+
+        assert_eq!(map.get_doc_id(3).unwrap(), 1);
+        assert_eq!(map.get_doc_id(4).unwrap(), 1);
     }
 }

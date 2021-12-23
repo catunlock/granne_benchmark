@@ -17,7 +17,7 @@ const ELEMENTS_PATH: &str = "elements.dat";
 const INDEX_PATH: &str = "index.dat";
 const DIRTY_PATH: &str = "DIRTY_BIT";
 const DELETED_PATH: &str = "deleted.dat";
-const INDEX_MAP_PATH: &str = "index_map.dat";
+const INDEX_MAP_PATH: &str = "index_map";
 
 #[cfg(test)]
 mod tests {
@@ -25,6 +25,7 @@ mod tests {
 
     use granne::angular::Vector;
     use log::LevelFilter;
+    use rayon::vec;
     use tempfile::TempDir;
 
     use crate::vectors::Writer;
@@ -93,6 +94,10 @@ mod tests {
 
         let reader = Reader::open(tmpdir.path()).unwrap();
         let res = reader.search(&create_vector(3, 1.0));
+
+        let doc_ids: Vec<_> = res.iter().map(|(doc_id, _score)| *doc_id).collect();
+        assert_eq!(doc_ids, vec![1,1,1]);
+
         info!("Results: {:?}", res);
 
         writer.push(2, &create_vector(3, 4.0)).unwrap();
@@ -102,6 +107,10 @@ mod tests {
         writer.commit();
 
         let res = reader.search(&create_vector(3, 3.0));
+
+        let doc_ids: Vec<_> = res.iter().map(|(doc_id, _score)| *doc_id).collect();
+        assert_eq!(doc_ids, vec![1,1,1,2,2,2]);
+
         info!("Results: {:?}", res);
 
     }
@@ -131,5 +140,28 @@ mod tests {
 
         t_writer.join().unwrap();
         t_reader.join().unwrap();
+    }
+
+    #[test]
+    fn search() {
+        init();
+
+        let tmpdir = TempDir::new().unwrap();
+        let mut writer = Writer::open(tmpdir.path()).unwrap();
+
+        for i in 1..100 {
+            writer.push(i, &create_vector(700, i as f32)).unwrap();    
+        }
+        writer.commit();
+
+        let idxs: Vec<_> = (100..100_00).into_iter().collect();
+        let vectors: Vec<_> = (100..100_00).into_iter().map(|i| create_vector(700, i as f32)).collect();
+
+        writer.push_batch(&idxs, &vectors).unwrap();
+        writer.commit();
+
+        let reader = Reader::open(tmpdir.path()).unwrap();
+        let res = reader.search(&create_vector(3, 700.0));
+        println!("Res: {:?}", res);
     }
 }

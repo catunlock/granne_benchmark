@@ -77,6 +77,28 @@ impl<'a> Writer<'a> {
         }
     }
 
+    pub fn push_batch(&mut self, doc_ids: &[usize], vectors: &[Vector]) -> Result<(), String> {
+        trace!("Pushing batch of {} docs", doc_ids.len());
+
+        let start_id = self.next_idx();
+        let end_id = start_id + doc_ids.len();
+
+        let id_list: Vec<_> = (start_id..end_id).collect();
+
+        match self.index_map.insert_batch(doc_ids, &id_list) {
+            Ok(()) => {
+                for v in vectors {
+                    self.elements.push(v);
+                }
+                Ok(())
+            },
+            Err(e) => {
+                error!("Error maping vector for document: {}", e.to_string());
+                Err(e.to_string())
+            }
+        }
+    }
+
     pub fn delete(&self, doc_id: usize) -> Result<(), String> {
         trace!("Marking all vectors of doc {} as deleted", doc_id);
         match self.index_map.get_vec_ids(doc_id) {

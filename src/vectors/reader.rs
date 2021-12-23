@@ -56,11 +56,11 @@ impl<'a> Reader<'a> {
 
         idxs.into_iter().map(|idx| {
             let score = raw_results.get(&idx).unwrap();
-            (idx, *score)
+            (self.index_map.get_doc_id(idx).unwrap(), *score)
         }).collect()
     }
 
-    pub fn search_vec(&self, query_vector: Vec<f32>) -> Vec<(Vector, f32)> {
+    pub fn _search_vec(&self, query_vector: Vec<f32>) -> Vec<(Vector, f32)> {
         let query_vector = Vector::from_iter(query_vector.into_iter());
         self.get_vectors(&self.search(&query_vector))
     }
