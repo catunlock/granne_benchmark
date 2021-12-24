@@ -1,8 +1,4 @@
-use std::{
-    fs::File,
-    path::{Path, PathBuf},
-    time::Instant,
-};
+use std::{fs::File, path::PathBuf, time::Instant};
 
 use granne::{
     angular::{self, Vector, Vectors},
@@ -30,7 +26,7 @@ impl<'a> Writer<'a> {
         let mut _writer_lock = Lock::open(&location.writer_lock_path()).unwrap();
 
         if let Err(e) = _writer_lock.try_lock() {
-            let message = format!("Adquiring lock for Writer: {}", e.to_string());
+            let message = format!("Adquiring lock for Writer: {}", e);
             error!("{}", message);
             return Err(message);
         }
@@ -168,7 +164,7 @@ impl<'a> Writer<'a> {
     fn remove_file<T: Into<PathBuf>>(path: T) {
         let path = path.into();
         match std::fs::remove_file(path.clone()) {
-            Ok(_) => debug!("Removed {:?}", path.clone()),
+            Ok(_) => debug!("Removed {:?}", path),
             Err(_) => trace!("Remove ignored, {:?} doesn't exist", path),
         }
     }
@@ -213,9 +209,8 @@ mod test {
         // This test show and checks the behaviour of the elements collection regarding the id matching
         // of the elements inserted.
         let mut elements = angular::Vectors::new();
-        let mut idxs: Vec<usize> = Vec::new();
+        let mut idxs: Vec<usize> = vec![elements.len()];
 
-        idxs.push(elements.len());
         elements.push(&create_vector(3, 0.0));
         idxs.push(elements.len());
         elements.push(&create_vector(3, 1.0));

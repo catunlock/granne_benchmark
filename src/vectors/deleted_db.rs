@@ -1,6 +1,4 @@
-use std::path::PathBuf;
-
-use lmdb::{Database, Environment};
+use lmdb::Database;
 extern crate lmdb_zero as lmdb;
 
 pub struct DeletedDBReader<'a> {
@@ -32,7 +30,7 @@ impl<'a> DeletedDBReader<'a> {
 
         match access.get::<[u8], [u8]>(&self.db, &key) {
             Ok(_) => Ok(true),
-            Err(e) => Ok(false),
+            Err(_) => Ok(false),
         }
     }
 
@@ -46,12 +44,9 @@ impl<'a> DeletedDBReader<'a> {
             .iter()
             .filter(|idx| {
                 let key = bincode::serialize(&idx).unwrap();
-                match access.get::<[u8], [u8]>(&self.db, &key) {
-                    Ok(_) => false,
-                    Err(e) => true,
-                }
+                access.get::<[u8], [u8]>(&self.db, &key).is_err()
             })
-            .map(|idx| *idx)
+            .copied()
             .collect())
     }
 }
@@ -107,8 +102,6 @@ impl<'a> DeletedDBWriter<'a> {
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashSet;
-
     use log::LevelFilter;
     use tempfile::tempdir;
 
@@ -151,8 +144,8 @@ mod test {
         init();
         let tempdir = tempdir().unwrap();
         let path = tempdir.path().to_str().unwrap();
-        let mut writer = DeletedDBWriter::open(path).unwrap();
-        let mut reader = DeletedDBReader::open(path).unwrap();
+        let writer = DeletedDBWriter::open(path).unwrap();
+        let reader = DeletedDBReader::open(path).unwrap();
 
         std::thread::spawn(move || {
             for i in 0..1_000 {
@@ -176,8 +169,8 @@ mod test {
         init();
         let tempdir = tempdir().unwrap();
         let path = tempdir.path().to_str().unwrap();
-        let mut writer = DeletedDBWriter::open(path).unwrap();
-        let mut reader = DeletedDBReader::open(path).unwrap();
+        let writer = DeletedDBWriter::open(path).unwrap();
+        let reader = DeletedDBReader::open(path).unwrap();
 
         std::thread::spawn(move || {
             writer.add_batch(0..1000).unwrap();

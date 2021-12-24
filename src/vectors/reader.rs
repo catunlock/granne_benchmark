@@ -2,12 +2,7 @@ use granne::{
     angular::{self, Vector, Vectors},
     Granne,
 };
-use std::{
-    cell::RefCell,
-    collections::{HashMap, HashSet},
-    ops::RangeBounds,
-    path::PathBuf,
-};
+use std::{cell::RefCell, collections::HashMap, path::PathBuf};
 
 use super::{directory::Location, DeletedDBReader, IndexMap, Lock};
 
@@ -60,7 +55,7 @@ impl<'a> Reader<'a> {
             self.index
                 .borrow()
                 .search(query_vector, self.max_search, self.num_neighbors);
-        let idxs: Vec<usize> = raw_results.iter().map(|(idx, score)| *idx).collect();
+        let idxs: Vec<usize> = raw_results.iter().map(|(idx, _score)| *idx).collect();
         let idxs = self.deleted.filter(&idxs).unwrap();
 
         let raw_results: HashMap<usize, f32> = raw_results.into_iter().collect();
@@ -78,7 +73,7 @@ impl<'a> Reader<'a> {
         self.get_vectors(&self.search(&query_vector))
     }
 
-    fn get_vectors(&self, results: &Vec<(usize, f32)>) -> Vec<(Vector, f32)> {
+    fn get_vectors(&self, results: &[(usize, f32)]) -> Vec<(Vector, f32)> {
         results
             .iter()
             .map(|(vec_id, score)| (self.index.borrow().get_element(*vec_id), *score))

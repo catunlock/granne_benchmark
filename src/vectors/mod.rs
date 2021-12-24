@@ -25,7 +25,6 @@ mod tests {
 
     use granne::angular::Vector;
     use log::LevelFilter;
-    use rayon::vec;
     use tempfile::TempDir;
 
     use crate::vectors::Writer;
@@ -118,8 +117,8 @@ mod tests {
     fn multithreaded_reader_and_writer() {
         init();
         let tmpdir = TempDir::new().unwrap();
-        let tmp1 = tmpdir.path().to_path_buf().clone();
-        let tmp2 = tmpdir.path().to_path_buf().clone();
+        let tmp1 = tmpdir.path().to_path_buf();
+        let tmp2 = tmpdir.path().to_path_buf();
 
         let t_writer = std::thread::spawn(|| {
             let mut writer = Writer::open(tmp1).unwrap();
@@ -153,8 +152,8 @@ mod tests {
         }
         writer.commit();
 
-        let idxs: Vec<_> = (100..100_00).into_iter().collect();
-        let vectors: Vec<_> = (100..100_00)
+        let idxs: Vec<_> = (100..10_000).into_iter().collect();
+        let vectors: Vec<_> = (100..10_000)
             .into_iter()
             .map(|i| create_vector(700, i as f32))
             .collect();

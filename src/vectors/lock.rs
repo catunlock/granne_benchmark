@@ -1,4 +1,4 @@
-use std::{fs::File, os::unix::thread, path::PathBuf, time::Duration};
+use std::{fs::File, path::PathBuf, time::Duration};
 
 pub struct Lock {
     location: PathBuf,
@@ -56,12 +56,9 @@ impl Lock {
 
 #[cfg(test)]
 mod tests {
-    use std::{os::unix::thread, path::PathBuf, time::Duration};
-
-    use futures::join;
     use log::LevelFilter;
     use rand::{distributions::Alphanumeric, Rng};
-    use tempfile::NamedTempFile;
+    use std::{path::PathBuf, time::Duration};
     use tokio::time::Instant;
 
     use super::Lock;

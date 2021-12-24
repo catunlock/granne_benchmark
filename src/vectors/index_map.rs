@@ -1,4 +1,4 @@
-use lmdb::{Database, Environment};
+use lmdb::Database;
 extern crate lmdb_zero as lmdb;
 
 pub struct IndexMap<'a> {
@@ -50,10 +50,10 @@ impl<'a> IndexMap<'a> {
         let mut results = Vec::new();
         match cursor.seek_k::<[u8], [u8]>(&access, &key) {
             Ok(v) => {
-                let v: usize = bincode::deserialize(&v).unwrap();
+                let v: usize = bincode::deserialize(v).unwrap();
                 results.push(v);
                 while let Ok((_, v)) = cursor.next_dup::<[u8], [u8]>(&access) {
-                    let v: usize = bincode::deserialize(&v).unwrap();
+                    let v: usize = bincode::deserialize(v).unwrap();
                     results.push(v);
                 }
             }
@@ -73,18 +73,18 @@ impl<'a> IndexMap<'a> {
         let access = txn.access();
 
         match access.get::<[u8], [u8]>(&self.db_inverted, &key) {
-            Ok(v) => Ok(bincode::deserialize(&v).unwrap()),
+            Ok(v) => Ok(bincode::deserialize(v).unwrap()),
             Err(e) => Err(e),
         }
     }
 
-    fn insert_at(db: &Database, key: &[u8], val: &Vec<u8>) -> Result<(), lmdb::Error> {
+    fn insert_at(db: &Database, key: &[u8], val: &[u8]) -> Result<(), lmdb::Error> {
         let env = db.env();
         let txn = lmdb::WriteTransaction::new(env)?;
         let flags = lmdb::put::Flags::empty();
         {
             let mut access = txn.access();
-            access.put::<[u8], [u8]>(&db, &key, val, flags)?;
+            access.put::<[u8], [u8]>(db, key, val, flags)?;
         }
         txn.commit()?;
         Ok(())
@@ -113,7 +113,7 @@ impl<'a> IndexMap<'a> {
             for i in 0..key.len() {
                 let key = bincode::serialize(&key[i]).unwrap();
                 let val = bincode::serialize(&val[i]).unwrap();
-                access.put::<[u8], [u8]>(&db, &key, &val, flags)?;
+                access.put::<[u8], [u8]>(db, &key, &val, flags)?;
             }
         }
         txn.commit()?;
@@ -124,7 +124,7 @@ impl<'a> IndexMap<'a> {
     pub fn insert_batch(&self, doc_ids: &[usize], vec_ids: &[usize]) -> Result<(), lmdb::Error> {
         assert_eq!(doc_ids.len(), vec_ids.len());
         IndexMap::insert_at_batch(&self.db, doc_ids, vec_ids)?;
-        IndexMap::insert_at_batch(&self.db_inverted, &vec_ids, &doc_ids)?;
+        IndexMap::insert_at_batch(&self.db_inverted, vec_ids, doc_ids)?;
 
         Ok(())
     }
@@ -248,7 +248,8 @@ mod test {
         map.insert(1, 3).unwrap();
         map.insert(1, 4).unwrap();
         */
-        map.insert_batch(&[0, 0, 0, 1, 1], &[0, 1, 2, 3, 4]);
+        map.insert_batch(&[0, 0, 0, 1, 1], &[0, 1, 2, 3, 4])
+            .unwrap();
 
         assert_eq!(map.get_vec_ids(0).unwrap(), vec![0, 1, 2]);
         assert_eq!(map.get_vec_ids(1).unwrap(), vec![3, 4]);
