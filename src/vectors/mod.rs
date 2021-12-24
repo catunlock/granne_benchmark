@@ -1,15 +1,15 @@
+pub mod deleted_db;
+pub mod directory;
+pub mod index_map;
+pub mod lock;
 pub mod reader;
 pub mod writer;
-pub mod directory;
-pub mod lock;
-pub mod deleted_db;
-pub mod index_map;
 
-pub use reader::*;
-pub use writer::*;
-pub use lock::*;
 pub use deleted_db::*;
 pub use index_map::*;
+pub use lock::*;
+pub use reader::*;
+pub use writer::*;
 
 const COMMIT_LOCK_PATH: &str = "COMMIT_LOCK";
 const WRITER_LOCK_PATH: &str = "WRITER_LOCK";
@@ -62,9 +62,9 @@ mod tests {
         let tmpdir = TempDir::new().unwrap();
         let mut writer = Writer::open(tmpdir.path()).unwrap();
 
-        writer.push(1,&create_vector(3, 1.0)).unwrap();
-        writer.push(1,&create_vector(3, 2.0)).unwrap();
-        writer.push(1,&create_vector(3, 3.0)).unwrap();
+        writer.push(1, &create_vector(3, 1.0)).unwrap();
+        writer.push(1, &create_vector(3, 2.0)).unwrap();
+        writer.push(1, &create_vector(3, 3.0)).unwrap();
 
         writer.commit();
 
@@ -96,7 +96,7 @@ mod tests {
         let res = reader.search(&create_vector(3, 1.0));
 
         let doc_ids: Vec<_> = res.iter().map(|(doc_id, _score)| *doc_id).collect();
-        assert_eq!(doc_ids, vec![1,1,1]);
+        assert_eq!(doc_ids, vec![1, 1, 1]);
 
         info!("Results: {:?}", res);
 
@@ -109,10 +109,9 @@ mod tests {
         let res = reader.search(&create_vector(3, 3.0));
 
         let doc_ids: Vec<_> = res.iter().map(|(doc_id, _score)| *doc_id).collect();
-        assert_eq!(doc_ids, vec![1,1,1,2,2,2]);
+        assert_eq!(doc_ids, vec![1, 1, 1, 2, 2, 2]);
 
         info!("Results: {:?}", res);
-
     }
 
     #[test]
@@ -122,7 +121,7 @@ mod tests {
         let tmp1 = tmpdir.path().to_path_buf().clone();
         let tmp2 = tmpdir.path().to_path_buf().clone();
 
-        let t_writer = std::thread::spawn( || {
+        let t_writer = std::thread::spawn(|| {
             let mut writer = Writer::open(tmp1).unwrap();
             for i in 0..500 {
                 writer.push(1, &create_vector(3, i as f32)).unwrap();
@@ -130,7 +129,7 @@ mod tests {
             }
         });
 
-        let t_reader = std::thread::spawn( || {
+        let t_reader = std::thread::spawn(|| {
             std::thread::sleep(Duration::from_millis(100));
             let reader = Reader::open(tmp2).unwrap();
             for _ in 0..500 {
@@ -150,12 +149,15 @@ mod tests {
         let mut writer = Writer::open(tmpdir.path()).unwrap();
 
         for i in 1..100 {
-            writer.push(i, &create_vector(700, i as f32)).unwrap();    
+            writer.push(i, &create_vector(700, i as f32)).unwrap();
         }
         writer.commit();
 
         let idxs: Vec<_> = (100..100_00).into_iter().collect();
-        let vectors: Vec<_> = (100..100_00).into_iter().map(|i| create_vector(700, i as f32)).collect();
+        let vectors: Vec<_> = (100..100_00)
+            .into_iter()
+            .map(|i| create_vector(700, i as f32))
+            .collect();
 
         writer.push_batch(&idxs, &vectors).unwrap();
         writer.commit();

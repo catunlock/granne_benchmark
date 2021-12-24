@@ -1,7 +1,7 @@
-use std::{path::PathBuf, fs::File, time::Duration, os::unix::thread};
+use std::{fs::File, os::unix::thread, path::PathBuf, time::Duration};
 
 pub struct Lock {
-    location: PathBuf
+    location: PathBuf,
 }
 
 impl Lock {
@@ -13,7 +13,7 @@ impl Lock {
             return Err("Parent directory doesn't exist.".to_string());
         }
 
-        Ok(Lock{location})
+        Ok(Lock { location })
     }
 
     pub fn try_lock(&self) -> Result<(), String> {
@@ -25,12 +25,12 @@ impl Lock {
             Ok(_) => {
                 debug!("Set lock file {:?}", self.location);
                 Ok(())
-            },
+            }
             Err(e) => {
                 let message = format!("Error setting dirty file: {}", e.to_string());
                 error!("{}", message);
                 Err(message)
-            },
+            }
         }
     }
 
@@ -56,13 +56,13 @@ impl Lock {
 
 #[cfg(test)]
 mod tests {
-    use std::{path::PathBuf, time::Duration, os::unix::thread};
+    use std::{os::unix::thread, path::PathBuf, time::Duration};
 
+    use futures::join;
     use log::LevelFilter;
     use rand::{distributions::Alphanumeric, Rng};
     use tempfile::NamedTempFile;
     use tokio::time::Instant;
-    use futures::join;
 
     use super::Lock;
 
@@ -88,7 +88,6 @@ mod tests {
 
     #[test]
     fn basic_lock() {
-        
         let temp_file = get_temp_path();
         let lock = Lock::open(&temp_file).unwrap();
 
@@ -107,7 +106,7 @@ mod tests {
         assert!(lock1.try_lock().is_ok());
         assert!(lock1.is_locked());
         assert!(lock2.try_lock().is_err());
-        
+
         lock1.unlock();
         assert!(!lock1.is_locked());
         assert!(!lock2.is_locked());
@@ -122,7 +121,7 @@ mod tests {
             let lock = Lock::open(&temp_file).unwrap();
             assert!(lock.try_lock().is_ok());
         }
-        
+
         assert!(temp_file.exists());
 
         let lock2 = Lock::open(&temp_file).unwrap();
@@ -160,9 +159,11 @@ mod tests {
             // Task that waits for the other to finish.
             std::thread::sleep(Duration::from_millis(100));
             lock2.lock(); // Lock has to wait 3 seconds to the other task to finish.
-            info!("Finally I managed to get some work done. {:?}", time0.elapsed());
+            info!(
+                "Finally I managed to get some work done. {:?}",
+                time0.elapsed()
+            );
             assert!(time0.elapsed() > Duration::from_secs(1));
-
         });
 
         t1.join().unwrap();

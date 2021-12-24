@@ -1,10 +1,17 @@
-use std::{path::{PathBuf, Path}, time::Instant, fs::File};
+use std::{
+    fs::File,
+    path::{Path, PathBuf},
+    time::Instant,
+};
 
-use granne::{angular::{self, Vector, Vectors}, GranneBuilder, BuildConfig, Builder, Index};
-use log::{trace, debug, error};
+use granne::{
+    angular::{self, Vector, Vectors},
+    BuildConfig, Builder, GranneBuilder, Index,
+};
+use log::{debug, error, trace};
 use tempfile::NamedTempFile;
 
-use super::{directory::Location, Lock, DeletedDBWriter, IndexMap};
+use super::{directory::Location, DeletedDBWriter, IndexMap, Lock};
 
 pub struct Writer<'a> {
     location: Location,
@@ -13,46 +20,39 @@ pub struct Writer<'a> {
     commit_lock: Lock,
     _writer_lock: Lock,
     deleted: DeletedDBWriter<'a>,
-    index_map: IndexMap<'a>
+    index_map: IndexMap<'a>,
 }
 
-
-
 impl<'a> Writer<'a> {
-
     pub fn open<T: Into<PathBuf>>(location: T) -> Result<Self, String> {
-
-        let location = Location(location.into());        
+        let location = Location(location.into());
         let commit_lock = Lock::open(&location.commit_lock_path()).unwrap();
         let mut _writer_lock = Lock::open(&location.writer_lock_path()).unwrap();
 
         if let Err(e) = _writer_lock.try_lock() {
             let message = format!("Adquiring lock for Writer: {}", e.to_string());
-            error!("{}",message);
+            error!("{}", message);
             return Err(message);
         }
 
         let elements = Writer::open_elements(location.elements_path());
 
-        let build_config = BuildConfig::new()
-            .num_neighbors(30)
-            .layer_multiplier(15.0)
-            .max_search(200);
+        let build_config = BuildConfig::default();
 
         let deleted_path = location.deleted_path();
         let deleted = DeletedDBWriter::open(deleted_path.to_str().unwrap()).unwrap();
-        
+
         let index_map_path = location.index_map_path();
         let index_map = IndexMap::open(index_map_path.to_str().unwrap()).unwrap();
 
-        Ok(Writer { 
+        Ok(Writer {
             location,
             elements,
             build_config,
             commit_lock,
             _writer_lock,
             deleted,
-            index_map
+            index_map,
         })
     }
 
@@ -69,7 +69,7 @@ impl<'a> Writer<'a> {
             Ok(()) => {
                 self.elements.push(vector);
                 Ok(())
-            },
+            }
             Err(e) => {
                 error!("Error maping vector for document: {}", e.to_string());
                 Err(e.to_string())
@@ -91,7 +91,7 @@ impl<'a> Writer<'a> {
                     self.elements.push(v);
                 }
                 Ok(())
-            },
+            }
             Err(e) => {
                 error!("Error maping vector for document: {}", e.to_string());
                 Err(e.to_string())
@@ -102,19 +102,24 @@ impl<'a> Writer<'a> {
     pub fn delete(&self, doc_id: usize) -> Result<(), String> {
         trace!("Marking all vectors of doc {} as deleted", doc_id);
         match self.index_map.get_vec_ids(doc_id) {
-            Ok(vec_ids) => {
-                match self.deleted.add_batch(vec_ids.into_iter()) {
-                    Ok(()) => Ok(()),
-                    Err(e) => {
-                        error!("Error adding vectors to deleted indexes database: {}", e.to_string());
-                        Err(e.to_string())
-                    },
+            Ok(vec_ids) => match self.deleted.add_batch(vec_ids.into_iter()) {
+                Ok(()) => Ok(()),
+                Err(e) => {
+                    error!(
+                        "Error adding vectors to deleted indexes database: {}",
+                        e.to_string()
+                    );
+                    Err(e.to_string())
                 }
             },
             Err(e) => {
-                error!("Error obtaining the indexes of the vectors of the document {}: {}", doc_id, e.to_string());
+                error!(
+                    "Error obtaining the indexes of the vectors of the document {}: {}",
+                    doc_id,
+                    e.to_string()
+                );
                 Err(e.to_string())
-            },
+            }
         }
     }
 
@@ -169,7 +174,6 @@ impl<'a> Writer<'a> {
     }
 
     fn save_index(&self, builder: &GranneBuilder<Vectors>) -> NamedTempFile {
-
         let mut tmpfile = NamedTempFile::new().unwrap();
 
         let t0 = Instant::now();
@@ -181,7 +185,6 @@ impl<'a> Writer<'a> {
     }
 
     fn save_elements(&self, builder: &GranneBuilder<Vectors>) -> NamedTempFile {
-        
         let mut tmpfile = NamedTempFile::new().unwrap();
 
         let t0 = Instant::now();
@@ -195,7 +198,6 @@ impl<'a> Writer<'a> {
     fn next_idx(&self) -> usize {
         self.elements.len()
     }
-
 }
 
 #[cfg(test)]
@@ -219,7 +221,6 @@ mod test {
         elements.push(&create_vector(3, 1.0));
         idxs.push(elements.len());
         elements.push(&create_vector(3, 2.0));
-
 
         assert_eq!(elements.get_element(0).0[0], 0.0);
         assert_eq!(elements.get_element(1).0[1], 1.0);

@@ -3,9 +3,8 @@ use std::path::PathBuf;
 use lmdb::{Database, Environment};
 extern crate lmdb_zero as lmdb;
 
-
 pub struct DeletedDBReader<'a> {
-    db: Database<'a>
+    db: Database<'a>,
 }
 
 impl<'a> DeletedDBReader<'a> {
@@ -20,9 +19,7 @@ impl<'a> DeletedDBReader<'a> {
 
         let db = lmdb::Database::open(env, None, &lmdb::DatabaseOptions::defaults())?;
 
-        Ok(DeletedDBReader {
-            db
-        })
+        Ok(DeletedDBReader { db })
     }
 
     pub fn _contains(&self, idx: usize) -> Result<bool, lmdb::Error> {
@@ -35,7 +32,7 @@ impl<'a> DeletedDBReader<'a> {
 
         match access.get::<[u8], [u8]>(&self.db, &key) {
             Ok(_) => Ok(true),
-            Err(e) => Ok(false)
+            Err(e) => Ok(false),
         }
     }
 
@@ -45,20 +42,22 @@ impl<'a> DeletedDBReader<'a> {
         let txn = lmdb::ReadTransaction::new(env).unwrap();
         let access = txn.access();
 
-        Ok(idxs.iter().filter(|idx| {
-            let key = bincode::serialize(&idx).unwrap();
-            match access.get::<[u8], [u8]>(&self.db, &key) {
-                Ok(_) => false,
-                Err(e) => true
-            }
-        })
-        .map(|idx| *idx)
-        .collect())
+        Ok(idxs
+            .iter()
+            .filter(|idx| {
+                let key = bincode::serialize(&idx).unwrap();
+                match access.get::<[u8], [u8]>(&self.db, &key) {
+                    Ok(_) => false,
+                    Err(e) => true,
+                }
+            })
+            .map(|idx| *idx)
+            .collect())
     }
 }
 
 pub struct DeletedDBWriter<'a> {
-    db: Database<'a>
+    db: Database<'a>,
 }
 
 impl<'a> DeletedDBWriter<'a> {
@@ -73,9 +72,7 @@ impl<'a> DeletedDBWriter<'a> {
 
         let db = lmdb::Database::open(env, None, &lmdb::DatabaseOptions::defaults())?;
 
-        Ok(DeletedDBWriter {
-            db
-        })
+        Ok(DeletedDBWriter { db })
     }
 
     pub fn add(&self, idx: usize) -> Result<(), lmdb::Error> {
@@ -102,7 +99,6 @@ impl<'a> DeletedDBWriter<'a> {
                 let key = bincode::serialize(&idx).unwrap();
                 access.put(&self.db, &key, &1, lmdb::put::Flags::empty())?;
             }
-            
         }
         txn.commit()?;
         Ok(())
@@ -124,10 +120,10 @@ mod test {
             .is_test(true)
             .try_init();
     }
-    
+
     #[test]
     fn vectors_and_slice_equality() {
-        let v = vec![1,456, 65570];
+        let v = vec![1, 456, 65570];
         assert!(v == [1, 456, 65570]);
     }
 
@@ -147,7 +143,7 @@ mod test {
         assert!(reader._contains(1).unwrap());
         assert!(reader._contains(256).unwrap());
 
-        assert_eq!(reader.filter(&[1,2,3,4,5,6,256]).unwrap(), [4,5,6]);
+        assert_eq!(reader.filter(&[1, 2, 3, 4, 5, 6, 256]).unwrap(), [4, 5, 6]);
     }
 
     #[test]
@@ -158,18 +154,21 @@ mod test {
         let mut writer = DeletedDBWriter::open(path).unwrap();
         let mut reader = DeletedDBReader::open(path).unwrap();
 
- 
         std::thread::spawn(move || {
             for i in 0..1_000 {
                 writer.add(i).unwrap();
-            }  
-        }).join().unwrap();
+            }
+        })
+        .join()
+        .unwrap();
 
         std::thread::spawn(move || {
             for i in 0..1_000 {
                 assert!(reader._contains(i).unwrap());
             }
-        }).join().unwrap();
+        })
+        .join()
+        .unwrap();
     }
 
     #[test]
@@ -181,13 +180,17 @@ mod test {
         let mut reader = DeletedDBReader::open(path).unwrap();
 
         std::thread::spawn(move || {
-            writer.add_batch(0..1000).unwrap();  
-        }).join().unwrap();
+            writer.add_batch(0..1000).unwrap();
+        })
+        .join()
+        .unwrap();
 
         std::thread::spawn(move || {
             for i in 0..1_000 {
                 assert!(reader._contains(i).unwrap());
             }
-        }).join().unwrap();
+        })
+        .join()
+        .unwrap();
     }
 }
