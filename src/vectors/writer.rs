@@ -73,6 +73,11 @@ impl<'a> Writer<'a> {
         }
     }
 
+    pub fn push_vec(&mut self, doc_id: usize, vector: Vec<f32>) -> Result<(), String> {
+        let vector = Vector::from_iter(vector.into_iter());
+        self.push(doc_id, &vector)
+    }
+
     pub fn push_batch(&mut self, doc_ids: &[usize], vectors: &[Vector]) -> Result<(), String> {
         trace!("Pushing batch of {} docs", doc_ids.len());
 
