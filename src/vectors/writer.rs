@@ -201,6 +201,9 @@ impl<'a> Writer<'a> {
     }
 }
 
+unsafe impl Send for Writer<'_> {}
+unsafe impl Sync for Writer<'_> {}
+
 #[cfg(test)]
 mod test {
     use granne::angular::{self, Vector};
@@ -227,3 +230,5 @@ mod test {
         assert_eq!(elements.get_element(2).0[2], 2.0);
     }
 }
+
+

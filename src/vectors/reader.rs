@@ -107,3 +107,6 @@ impl<'a> Reader<'a> {
         self.commit_lock.unlock();
     }
 }
+
+unsafe impl Send for Reader<'_> {}
+unsafe impl Sync for Reader<'_> {}
