@@ -47,8 +47,8 @@ mod tests {
         init();
 
         let tmpdir = TempDir::new().unwrap();
-        let w1 = Writer::open(tmpdir.path());
-        let w2 = Writer::open(tmpdir.path());
+        let w1 = Writer::<usize>::open(tmpdir.path());
+        let w2 = Writer::<usize>::open(tmpdir.path());
 
         assert!(w1.is_ok());
         assert!(w2.is_err());
@@ -91,7 +91,7 @@ mod tests {
 
         writer.commit();
 
-        let reader = Reader::open(tmpdir.path()).unwrap();
+        let reader = Reader::<usize>::open(tmpdir.path()).unwrap();
         let res = reader.search(&create_vector(3, 1.0));
 
         let doc_ids: Vec<_> = res.iter().map(|(doc_id, _score)| *doc_id).collect();
@@ -130,7 +130,7 @@ mod tests {
 
         let t_reader = std::thread::spawn(|| {
             std::thread::sleep(Duration::from_millis(100));
-            let reader = Reader::open(tmp2).unwrap();
+            let reader = Reader::<usize>::open(tmp2).unwrap();
             for _ in 0..500 {
                 reader.search(&create_vector(3, 3.0));
             }
@@ -161,7 +161,7 @@ mod tests {
         writer.push_batch(&idxs, &vectors).unwrap();
         writer.commit();
 
-        let reader = Reader::open(tmpdir.path()).unwrap();
+        let reader = Reader::<usize>::open(tmpdir.path()).unwrap();
         let res = reader.search(&create_vector(3, 700.0));
         println!("Res: {:?}", res);
     }

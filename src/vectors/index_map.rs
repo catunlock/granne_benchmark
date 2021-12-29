@@ -1,13 +1,37 @@
-use lmdb::Database;
+use std::fmt::Debug;
+
+use lmdb::{Database, Environment};
+use serde::{Deserialize, Serialize};
 extern crate lmdb_zero as lmdb;
 
 #[derive(Debug)]
-pub struct IndexMap<'a> {
+pub struct IndexMap<'a,'b, T: Default + Debug + Serialize + Deserialize<'static>> {
     db: Database<'a>,
-    db_inverted: Database<'a>,
+    db_inverted: Database<'b>,
+    _d: T
 }
 
-impl<'a> IndexMap<'a> {
+impl<'a, 'b, T: Default + Debug + Serialize + Deserialize<'static>> IndexMap<'a, 'b, T>
+{
+    /// Returns all the internal vectors ids for a document.
+    pub fn get_doc_id(&self, vec_id: usize) -> Result<AsRef<T>, lmdb::Error> {
+        let key = bincode::serialize(&vec_id).unwrap();
+
+        let env: &Environment =  self.db_inverted.env();
+        let txn = lmdb::ReadTransaction::new(env).unwrap();
+        let access = txn.access();
+
+        match access.get::<[u8], [u8]>(&self.db_inverted, &key) {
+            Ok(v) => {
+                let a: T = bincode::deserialize::<'static>(v).unwrap();
+                Ok(a)
+            },
+            Err(e) => Err(e),
+        }
+    }
+}
+
+impl<'a, 'b, T: Default + Debug + Serialize + Deserialize<'static>> IndexMap<'a, 'b, T> {
     pub fn open(path: &str) -> Result<Self, lmdb::Error> {
         let inverted_path = path.to_string() + "inverted";
         std::fs::create_dir_all(path).unwrap();
@@ -34,12 +58,12 @@ impl<'a> IndexMap<'a> {
         let db = lmdb::Database::open(env, None, &database_options)?;
         let db_inverted = lmdb::Database::open(env_inverted, None, &database_options_inverted)?;
 
-        Ok(IndexMap { db, db_inverted })
+        Ok(IndexMap { db, db_inverted, _d: Default::default() })
     }
 
     /// Returns all the internal vectors ids for a document.
-    pub fn get_vec_ids(&self, doc_id: usize) -> Result<Vec<usize>, lmdb::Error> {
-        trace!("Obtaining all vector idxs for document: {}", doc_id);
+    pub fn get_vec_ids(&self, doc_id: T) -> Result<Vec<usize>, lmdb::Error> {
+        trace!("Obtaining all vector idxs for document: {:?}", doc_id);
         let key = bincode::serialize(&doc_id).unwrap();
 
         let env = self.db.env();
@@ -59,25 +83,13 @@ impl<'a> IndexMap<'a> {
                 }
             }
             Err(e) => {
-                error!("Error looking for key {}: {}", doc_id, e.to_string());
+                error!("Error looking for key {:?}: {}", doc_id, e.to_string());
             }
         }
         Ok(results)
     }
 
-    /// Returns all the internal vectors ids for a document.
-    pub fn get_doc_id(&self, vec_id: usize) -> Result<usize, lmdb::Error> {
-        let key = bincode::serialize(&vec_id).unwrap();
 
-        let env = self.db_inverted.env();
-        let txn = lmdb::ReadTransaction::new(env).unwrap();
-        let access = txn.access();
-
-        match access.get::<[u8], [u8]>(&self.db_inverted, &key) {
-            Ok(v) => Ok(bincode::deserialize(v).unwrap()),
-            Err(e) => Err(e),
-        }
-    }
 
     fn insert_at(db: &Database, key: &[u8], val: &[u8]) -> Result<(), lmdb::Error> {
         let env = db.env();
@@ -92,19 +104,19 @@ impl<'a> IndexMap<'a> {
     }
 
     /// Adds a new internal vec_id to the list of associated vectors of a document.
-    pub fn insert(&self, doc_id: usize, vec_id: usize) -> Result<(), lmdb::Error> {
-        trace!("Add doc_id {} <-> vec_id {}", doc_id, vec_id);
+    pub fn insert(&self, doc_id: T, vec_id: usize) -> Result<(), lmdb::Error> {
+        trace!("Add doc_id {:?} <-> vec_id {}", doc_id, vec_id);
 
         let key = bincode::serialize(&doc_id).unwrap();
         let val = bincode::serialize(&vec_id).unwrap();
 
-        IndexMap::insert_at(&self.db, &key, &val)?;
-        IndexMap::insert_at(&self.db_inverted, &val, &key)?;
+        IndexMap::<T>::insert_at(&self.db, &key, &val)?;
+        IndexMap::<T>::insert_at(&self.db_inverted, &val, &key)?;
 
         Ok(())
     }
 
-    fn insert_at_batch(db: &Database, key: &[usize], val: &[usize]) -> Result<(), lmdb::Error> {
+    fn insert_at_batch<J: Serialize, K: Serialize>(db: &Database, key: &[J], val: &[K]) -> Result<(), lmdb::Error> {
         let env = db.env();
         let txn = lmdb::WriteTransaction::new(env)?;
         let flags = lmdb::put::Flags::empty();
@@ -122,10 +134,10 @@ impl<'a> IndexMap<'a> {
     }
 
     /// Adds a new internal vec_id to the list of associated vectors of a document.
-    pub fn insert_batch(&self, doc_ids: &[usize], vec_ids: &[usize]) -> Result<(), lmdb::Error> {
+    pub fn insert_batch(&self, doc_ids: &[T], vec_ids: &[usize]) -> Result<(), lmdb::Error> {
         assert_eq!(doc_ids.len(), vec_ids.len());
-        IndexMap::insert_at_batch(&self.db, doc_ids, vec_ids)?;
-        IndexMap::insert_at_batch(&self.db_inverted, vec_ids, doc_ids)?;
+        IndexMap::<T>::insert_at_batch(&self.db, doc_ids, vec_ids)?;
+        IndexMap::<T>::insert_at_batch(&self.db_inverted, vec_ids, doc_ids)?;
 
         Ok(())
     }
@@ -133,7 +145,7 @@ impl<'a> IndexMap<'a> {
     /// Deletes all the entries of a doc_id in the database.
     ///
     /// The inverted index is not modified since these elements still exists in granne vectors
-    pub fn delete(&self, doc_id: usize) -> Result<(), lmdb::Error> {
+    pub fn delete(&self, doc_id: T) -> Result<(), lmdb::Error> {
         let env = self.db.env();
         let txn = lmdb::WriteTransaction::new(env)?;
         {

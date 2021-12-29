@@ -5,21 +5,24 @@ use granne::{
     BuildConfig, Builder, GranneBuilder, Index,
 };
 use log::{debug, error, trace};
+use serde::{Serialize, Deserialize};
 use tempfile::NamedTempFile;
 
 use super::{directory::Location, DeletedDBWriter, IndexMap, Lock};
+use std::fmt::Debug;
 
-pub struct Writer<'a> {
+pub struct Writer<'a, 'b, T: Default + Debug + Serialize + Deserialize<'static>> {
     location: Location,
     elements: angular::Vectors<'a>,
     build_config: BuildConfig,
     commit_lock: Lock,
     writer_lock: Lock,
     deleted: DeletedDBWriter<'a>,
-    index_map: IndexMap<'a>,
+    index_map: IndexMap<'a, 'b, T>,
+    _d: T
 }
 
-impl fmt::Debug for Writer<'_> {
+impl<'a, 'b, T: Default + Debug + Serialize + Deserialize<'static>> fmt::Debug for Writer<'a, 'b, T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Writer")
         .field("location", &self.location)
@@ -32,15 +35,15 @@ impl fmt::Debug for Writer<'_> {
     }
 }
 
-impl<'a> Drop for Writer<'a> {
+impl<'a, 'b, T: Default + Debug + Serialize + Deserialize<'static>> Drop for Writer<'a, 'b, T> {
     fn drop(&mut self) {
         debug!("Dropping writer");
         self.writer_lock.unlock();
     }
 }
 
-impl<'a> Writer<'a> {
-    pub fn open<T: Into<PathBuf>>(location: T) -> Result<Self, String> {
+impl<'a, 'b, T: Default + Debug + Serialize + Deserialize<'static>> Writer<'a, 'b, T> {
+    pub fn open<P: Into<PathBuf>>(location: P) -> Result<Self, String> {
         let location = Location(location.into());
         std::fs::create_dir_all(location.path()).unwrap();
         let commit_lock = Lock::open(&location.commit_lock_path()).unwrap();
@@ -51,7 +54,7 @@ impl<'a> Writer<'a> {
             error!("{}", message);
         }
 
-        let elements = Writer::open_elements(location.elements_path());
+        let elements = Writer::<T>::open_elements(location.elements_path());
 
         let build_config = BuildConfig::default();
 
@@ -69,18 +72,19 @@ impl<'a> Writer<'a> {
             writer_lock,
             deleted,
             index_map,
+            _d: Default::default()
         })
     }
 
-    fn open_elements<'b, T: Into<PathBuf>>(elements_path: T) -> angular::Vectors<'b> {
+    fn open_elements<'c, P: Into<PathBuf>>(elements_path: P) -> angular::Vectors<'c> {
         match File::open(elements_path.into()) {
             Ok(file) => unsafe { angular::Vectors::from_file(&file).unwrap() },
             Err(_) => angular::Vectors::new(),
         }
     }
 
-    pub fn push(&mut self, doc_id: usize, vector: &Vector) -> Result<(), String> {
-        trace!("Pushing vector for doc: {}", doc_id);
+    pub fn push(&mut self, doc_id: T, vector: &Vector) -> Result<(), String> {
+        trace!("Pushing vector for doc: {:?}", doc_id);
         match self.index_map.insert(doc_id, self.next_idx()) {
             Ok(()) => {
                 self.elements.push(vector);
@@ -93,12 +97,12 @@ impl<'a> Writer<'a> {
         }
     }
 
-    pub fn push_vec(&mut self, doc_id: usize, vector: Vec<f32>) -> Result<(), String> {
+    pub fn push_vec(&mut self, doc_id: T, vector: Vec<f32>) -> Result<(), String> {
         let vector = Vector::from_iter(vector.into_iter());
         self.push(doc_id, &vector)
     }
 
-    pub fn push_batch(&mut self, doc_ids: &[usize], vectors: &[Vector]) -> Result<(), String> {
+    pub fn push_batch(&mut self, doc_ids: &[T], vectors: &[Vector]) -> Result<(), String> {
         trace!("Pushing batch of {} docs", doc_ids.len());
 
         let start_id = self.next_idx();
@@ -117,7 +121,7 @@ impl<'a> Writer<'a> {
         Ok(())
     }
 
-    fn map_batch(&mut self, doc_ids: &[usize], vec_ids: &[usize], vectors: &[Vector]) -> Result<(), String> {
+    fn map_batch(&mut self, doc_ids: &[T], vec_ids: &[usize], vectors: &[Vector]) -> Result<(), String> {
         match self.index_map.insert_batch(doc_ids, &vec_ids) {
             Ok(()) => {
                 for v in vectors {
@@ -132,8 +136,8 @@ impl<'a> Writer<'a> {
         }
     }
 
-    pub fn delete(&self, doc_id: usize) -> Result<(), String> {
-        trace!("Marking all vectors of doc {} as deleted", doc_id);
+    pub fn delete(&self, doc_id: T) -> Result<(), String> {
+        trace!("Marking all vectors of doc {:?} as deleted", doc_id);
         match self.index_map.get_vec_ids(doc_id) {
             Ok(vec_ids) => match self.deleted.add_batch(vec_ids.into_iter()) {
                 Ok(()) => Ok(()),
@@ -147,7 +151,7 @@ impl<'a> Writer<'a> {
             },
             Err(e) => {
                 error!(
-                    "Error obtaining the indexes of the vectors of the document {}: {}",
+                    "Error obtaining the indexes of the vectors of the document {:?}: {}",
                     doc_id,
                     e.to_string()
                 );
@@ -190,15 +194,15 @@ impl<'a> Writer<'a> {
         self.commit_lock.unlock();
     }
 
-    fn swap_files<T: Into<PathBuf>>(&self, orig: T, dest: T) {
+    fn swap_files<P: Into<PathBuf>>(&self, orig: P, dest: P) {
         let orig = orig.into();
         let dest = dest.into();
-        Writer::remove_file(dest.clone());
+        Writer::<T>::remove_file(dest.clone());
         debug!("Moving {:?} -> {:?}", orig, dest);
         std::fs::rename(orig, dest).unwrap();
     }
 
-    fn remove_file<T: Into<PathBuf>>(path: T) {
+    fn remove_file<P: Into<PathBuf>>(path: P) {
         let path = path.into();
         match std::fs::remove_file(path.clone()) {
             Ok(_) => debug!("Removed {:?}", path),
@@ -233,8 +237,8 @@ impl<'a> Writer<'a> {
     }
 }
 
-unsafe impl Send for Writer<'_> {}
-unsafe impl Sync for Writer<'_> {}
+unsafe impl<'a, 'b, T: Default + Debug + Serialize + Deserialize<'static>> Send for Writer<'a, 'b, T> {}
+unsafe impl<'a, 'b, T: Default + Debug+ Serialize + Deserialize<'static>> Sync for Writer<'a, 'b, T> {}
 
 #[cfg(test)]
 mod test {
