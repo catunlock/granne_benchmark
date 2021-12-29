@@ -1,4 +1,4 @@
-use std::{fs::File, path::PathBuf, time::Instant};
+use std::{fs::File, path::PathBuf, time::Instant, fmt};
 
 use granne::{
     angular::{self, Vector, Vectors},
@@ -14,21 +14,41 @@ pub struct Writer<'a> {
     elements: angular::Vectors<'a>,
     build_config: BuildConfig,
     commit_lock: Lock,
-    _writer_lock: Lock,
+    writer_lock: Lock,
     deleted: DeletedDBWriter<'a>,
     index_map: IndexMap<'a>,
+}
+
+impl fmt::Debug for Writer<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Writer")
+        .field("location", &self.location)
+        .field("build_config", &self.build_config)
+        .field("commit_lock", &self.commit_lock)
+        .field("_writer_lock", &self.writer_lock)
+        .field("deleted", &self.deleted)
+        .field("index_map", &self.index_map)
+        .finish()
+    }
+}
+
+impl<'a> Drop for Writer<'a> {
+    fn drop(&mut self) {
+        debug!("Dropping writer");
+        self.writer_lock.unlock();
+    }
 }
 
 impl<'a> Writer<'a> {
     pub fn open<T: Into<PathBuf>>(location: T) -> Result<Self, String> {
         let location = Location(location.into());
+        std::fs::create_dir_all(location.path()).unwrap();
         let commit_lock = Lock::open(&location.commit_lock_path()).unwrap();
-        let mut _writer_lock = Lock::open(&location.writer_lock_path()).unwrap();
+        let writer_lock = Lock::open(&location.writer_lock_path()).unwrap();
 
-        if let Err(e) = _writer_lock.try_lock() {
-            let message = format!("Adquiring lock for Writer: {}", e);
+        if let Err(e) = writer_lock.try_lock() {
+            let message = format!("Adquiring lock for Writer: {}.\nCheck if another instance of nucliadb_node is running.", e);
             error!("{}", message);
-            return Err(message);
         }
 
         let elements = Writer::open_elements(location.elements_path());
@@ -46,7 +66,7 @@ impl<'a> Writer<'a> {
             elements,
             build_config,
             commit_lock,
-            _writer_lock,
+            writer_lock,
             deleted,
             index_map,
         })
@@ -86,7 +106,19 @@ impl<'a> Writer<'a> {
 
         let id_list: Vec<_> = (start_id..end_id).collect();
 
-        match self.index_map.insert_batch(doc_ids, &id_list) {
+        let step = 5000;
+        for i in 0..doc_ids.len()/step {
+            let start = i*step;
+            let end = (i+1)*step;
+            println!("map batch {} - {}", start, end);
+            self.map_batch(&doc_ids[start..end], &id_list[start..end], vectors)?;
+        }
+
+        Ok(())
+    }
+
+    fn map_batch(&mut self, doc_ids: &[usize], vec_ids: &[usize], vectors: &[Vector]) -> Result<(), String> {
+        match self.index_map.insert_batch(doc_ids, &vec_ids) {
             Ok(()) => {
                 for v in vectors {
                     self.elements.push(v);

@@ -1,7 +1,14 @@
-use std::{fs::File, path::PathBuf, time::Duration};
+use std::{fs::File, path::PathBuf, time::Duration, fmt};
 
 pub struct Lock {
     location: PathBuf,
+}
+
+impl fmt::Debug for Lock {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Lock").field("location", &self.location)
+        .field("locked", &self.is_locked()).finish()
+    }
 }
 
 impl Lock {

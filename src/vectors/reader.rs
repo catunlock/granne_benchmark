@@ -2,7 +2,7 @@ use granne::{
     angular::{self, Vector, Vectors},
     Granne,
 };
-use std::{cell::RefCell, collections::HashMap, path::PathBuf};
+use std::{cell::RefCell, collections::HashMap, path::PathBuf, fmt, io};
 
 use super::{directory::Location, DeletedDBReader, IndexMap, Lock};
 
@@ -16,16 +16,37 @@ pub struct Reader<'a> {
     index_map: IndexMap<'a>,
 }
 
+impl fmt::Debug  for Reader<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("Reader")
+        .field("location", &self.location)
+        .field("commit_lock", &self.commit_lock)
+        .field("max_search", &self.max_search)
+        .field("num_neighbors", &self.num_neighbors)
+        .field("deleted", &self.deleted)
+        .field("index_map", &self.index_map)
+        .finish()
+    }
+}
+
+
 impl<'a> Reader<'a> {
     pub fn open<T: Into<PathBuf>>(location: T) -> Result<Self, String> {
         let location = Location(location.into());
         let commit_lock = Lock::open(&location.commit_lock_path()).unwrap();
 
-        let index = RefCell::new(Reader::load_index(
+        let index = match Reader::load_index(
             location.index_path(),
             location.elements_path(),
-        ));
+        ) {
+            Ok(index) => index,
+            Err(e) => {
+                let message = format!("{}", e.to_string());
+                return Err(message)
+            },
+        };
 
+        let index = RefCell::new(index);
         let deleted_path = location.deleted_path();
         let deleted = DeletedDBReader::open(deleted_path.to_str().unwrap()).unwrap();
 
@@ -73,13 +94,13 @@ impl<'a> Reader<'a> {
         self.search(&query_vector)
     }
 
-    fn load_index<T: Into<PathBuf>>(index_path: T, elements_path: T) -> Granne<'a, Vectors<'a>> {
+    fn load_index<T: Into<PathBuf>>(index_path: T, elements_path: T) -> Result<Granne<'a, Vectors<'a>>, io::Error> {
         debug!("Loading (memory-mapping) index and vectors.");
-        let index_file = std::fs::File::open(index_path.into()).unwrap();
-        let elements_file = std::fs::File::open(elements_path.into()).unwrap();
+        let index_file = std::fs::File::open(index_path.into())?;
+        let elements_file = std::fs::File::open(elements_path.into())?;
 
-        let elements = unsafe { angular::Vectors::from_file(&elements_file).unwrap() };
-        unsafe { Granne::from_file(&index_file, elements.clone()).unwrap() }
+        let elements = unsafe { angular::Vectors::from_file(&elements_file)? };
+        Ok(unsafe { Granne::from_file(&index_file, elements.clone()).unwrap() })
     }
 
     pub fn is_dirty(&self) -> bool {
@@ -103,7 +124,7 @@ impl<'a> Reader<'a> {
         self.index.replace(Reader::load_index(
             self.location.index_path(),
             self.location.elements_path(),
-        ));
+        ).unwrap());
         self.commit_lock.unlock();
     }
 }

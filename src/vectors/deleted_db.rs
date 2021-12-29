@@ -1,6 +1,7 @@
 use lmdb::Database;
 extern crate lmdb_zero as lmdb;
 
+#[derive(Debug)]
 pub struct DeletedDBReader<'a> {
     db: Database<'a>,
 }
@@ -51,6 +52,7 @@ impl<'a> DeletedDBReader<'a> {
     }
 }
 
+#[derive(Debug)]
 pub struct DeletedDBWriter<'a> {
     db: Database<'a>,
 }

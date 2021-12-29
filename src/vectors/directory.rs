@@ -5,6 +5,7 @@ use super::{
     WRITER_LOCK_PATH,
 };
 
+#[derive(Debug)]
 pub struct Location(pub PathBuf);
 
 impl Location {

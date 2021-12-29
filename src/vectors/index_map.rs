@@ -1,6 +1,7 @@
 use lmdb::Database;
 extern crate lmdb_zero as lmdb;
 
+#[derive(Debug)]
 pub struct IndexMap<'a> {
     db: Database<'a>,
     db_inverted: Database<'a>,
