@@ -11,15 +11,19 @@ fn random_vector(n_dim: usize) -> Vector<'static> {
     Vector((0..n_dim).map(|_| rng.gen()).collect())
 }
 
+fn create_vector(n_dim: usize, v: f32) -> Vector<'static> {
+    Vector((0..n_dim).map(|_| v).collect())
+}
+
 fn main() {
     let t0 = Instant::now();
     eprintln!("Granne benchmark start!");
     let n_dim: usize = env::var("DIMENSIONS")
-        .unwrap_or("800".to_string())
+        .unwrap_or("5".to_string())
         .parse()
         .unwrap();
     let n_vectors: usize = env::var("N_VECTORS")
-        .unwrap_or("2000000".to_string())
+        .unwrap_or("200000".to_string())
         .parse()
         .unwrap();
     let n_results: usize = env::var("N_RESULTS")
@@ -45,7 +49,7 @@ fn main() {
 
 
     eprintln!("Building the index - {:?}", t0.elapsed());
-    let mut builder = GranneBuilder::new(BuildConfig::default(), elements);
+    let mut builder = GranneBuilder::new(BuildConfig::default().show_progress(true).max_search(100), elements);
     builder.build();
     
     {
@@ -70,9 +74,14 @@ fn main() {
 
     // max_search controls how extensive the search is
     eprintln!("Querying a random vector - {:?}", t0.elapsed());
-    let query_vector = random_vector(n_dim);
+    let query_vector = create_vector(n_dim, 1.0);
     let max_search = 200;
     let res = index.search(&query_vector, max_search, n_results);
 
     eprintln!("Found {} - {:?}", res.len(), t0.elapsed());
+    
+    for (vec_id, score) in res {
+        let v = index.get_element(vec_id);
+        eprintln!("{} - {:?}", score, v.as_slice());
+    }
 }
