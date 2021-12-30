@@ -6,6 +6,7 @@ use granne::{
 };
 use log::{debug, error, trace};
 use tempfile::NamedTempFile;
+use uuid::Uuid;
 
 use super::{directory::Location, DeletedDBWriter, IndexMap, Lock};
 
@@ -79,7 +80,7 @@ impl<'a> Writer<'a> {
         }
     }
 
-    pub fn push(&mut self, doc_id: usize, vector: &Vector) -> Result<(), String> {
+    pub fn push(&mut self, doc_id: Uuid, vector: &Vector) -> Result<(), String> {
         trace!("Pushing vector for doc: {}", doc_id);
         match self.index_map.insert(doc_id, self.next_idx()) {
             Ok(()) => {
@@ -93,12 +94,12 @@ impl<'a> Writer<'a> {
         }
     }
 
-    pub fn push_vec(&mut self, doc_id: usize, vector: Vec<f32>) -> Result<(), String> {
+    pub fn push_vec(&mut self, doc_id: Uuid, vector: Vec<f32>) -> Result<(), String> {
         let vector = Vector::from_iter(vector.into_iter());
         self.push(doc_id, &vector)
     }
 
-    pub fn push_batch(&mut self, doc_ids: &[usize], vectors: &[Vector]) -> Result<(), String> {
+    pub fn push_batch(&mut self, doc_ids: &[Uuid], vectors: &[Vector]) -> Result<(), String> {
         trace!("Pushing batch of {} docs", doc_ids.len());
 
         let start_id = self.next_idx();
@@ -117,7 +118,7 @@ impl<'a> Writer<'a> {
         Ok(())
     }
 
-    fn map_batch(&mut self, doc_ids: &[usize], vec_ids: &[usize], vectors: &[Vector]) -> Result<(), String> {
+    fn map_batch(&mut self, doc_ids: &[Uuid], vec_ids: &[usize], vectors: &[Vector]) -> Result<(), String> {
         match self.index_map.insert_batch(doc_ids, &vec_ids) {
             Ok(()) => {
                 for v in vectors {
@@ -132,7 +133,7 @@ impl<'a> Writer<'a> {
         }
     }
 
-    pub fn delete(&self, doc_id: usize) -> Result<(), String> {
+    pub fn delete(&self, doc_id: Uuid) -> Result<(), String> {
         trace!("Marking all vectors of doc {} as deleted", doc_id);
         match self.index_map.get_vec_ids(doc_id) {
             Ok(vec_ids) => match self.deleted.add_batch(vec_ids.into_iter()) {

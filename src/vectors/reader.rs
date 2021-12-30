@@ -2,6 +2,7 @@ use granne::{
     angular::{self, Vector, Vectors},
     Granne,
 };
+use uuid::Uuid;
 use std::{cell::RefCell, collections::HashMap, path::PathBuf, fmt, io};
 
 use super::{directory::Location, DeletedDBReader, IndexMap, Lock};
@@ -64,7 +65,7 @@ impl<'a> Reader<'a> {
         })
     }
 
-    pub fn search(&self, query_vector: &Vector<'static>) -> Vec<(usize, f32)> {
+    pub fn search(&self, query_vector: &Vector<'static>) -> Vec<(Uuid, f32)> {
         debug!("Search for vector");
 
         if self.is_dirty() {
@@ -89,7 +90,7 @@ impl<'a> Reader<'a> {
             .collect()
     }
 
-    pub fn search_vec(&self, query_vector: Vec<f32>) -> Vec<(usize, f32)> {
+    pub fn search_vec(&self, query_vector: Vec<f32>) -> Vec<(Uuid, f32)> {
         let query_vector = Vector::from_iter(query_vector.into_iter());
         self.search(&query_vector)
     }

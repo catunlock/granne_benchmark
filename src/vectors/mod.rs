@@ -26,6 +26,7 @@ mod tests {
     use granne::angular::Vector;
     use log::LevelFilter;
     use tempfile::TempDir;
+    use uuid::Uuid;
 
     use crate::vectors::Writer;
 
@@ -61,19 +62,23 @@ mod tests {
         let tmpdir = TempDir::new().unwrap();
         let mut writer = Writer::open(tmpdir.path()).unwrap();
 
-        writer.push(1, &create_vector(3, 1.0)).unwrap();
-        writer.push(1, &create_vector(3, 2.0)).unwrap();
-        writer.push(1, &create_vector(3, 3.0)).unwrap();
+        let doc_id1 = Uuid::new_v4();
+        let doc_id2 = Uuid::new_v4();
+        let doc_id3 = Uuid::new_v4();
+
+        writer.push(doc_id1, &create_vector(3, 1.0)).unwrap();
+        writer.push(doc_id1, &create_vector(3, 2.0)).unwrap();
+        writer.push(doc_id1, &create_vector(3, 3.0)).unwrap();
 
         writer.commit();
 
-        writer.push(2, &create_vector(3, 4.0)).unwrap();
-        writer.push(2, &create_vector(3, 5.0)).unwrap();
+        writer.push(doc_id2, &create_vector(3, 4.0)).unwrap();
+        writer.push(doc_id2, &create_vector(3, 5.0)).unwrap();
 
         writer.commit();
 
-        writer.push(3, &create_vector(3, 6.0)).unwrap();
-        writer.push(3, &create_vector(3, 7.0)).unwrap();
+        writer.push(doc_id3, &create_vector(3, 6.0)).unwrap();
+        writer.push(doc_id3, &create_vector(3, 7.0)).unwrap();
 
         writer.commit();
     }
@@ -85,9 +90,11 @@ mod tests {
         let tmpdir = TempDir::new().unwrap();
         let mut writer = Writer::open(tmpdir.path()).unwrap();
 
-        writer.push(1, &create_vector(3, 1.0)).unwrap();
-        writer.push(1, &create_vector(3, 2.0)).unwrap();
-        writer.push(1, &create_vector(3, 3.0)).unwrap();
+        let doc_id1 = Uuid::new_v4();
+
+        writer.push(doc_id1, &create_vector(3, 1.0)).unwrap();
+        writer.push(doc_id1, &create_vector(3, 2.0)).unwrap();
+        writer.push(doc_id1, &create_vector(3, 3.0)).unwrap();
 
         writer.commit();
 
@@ -95,20 +102,21 @@ mod tests {
         let res = reader.search(&create_vector(3, 1.0));
 
         let doc_ids: Vec<_> = res.iter().map(|(doc_id, _score)| *doc_id).collect();
-        assert_eq!(doc_ids, vec![1, 1, 1]);
+        assert_eq!(doc_ids, vec![doc_id1, doc_id1, doc_id1]);
 
         info!("Results: {:?}", res);
+        let doc_id2 = Uuid::new_v4();
 
-        writer.push(2, &create_vector(3, 4.0)).unwrap();
-        writer.push(2, &create_vector(3, 5.0)).unwrap();
-        writer.push(2, &create_vector(3, 6.0)).unwrap();
+        writer.push(doc_id2, &create_vector(3, 4.0)).unwrap();
+        writer.push(doc_id2, &create_vector(3, 5.0)).unwrap();
+        writer.push(doc_id2, &create_vector(3, 6.0)).unwrap();
 
         writer.commit();
 
         let res = reader.search(&create_vector(3, 3.0));
 
         let doc_ids: Vec<_> = res.iter().map(|(doc_id, _score)| *doc_id).collect();
-        assert_eq!(doc_ids, vec![1, 1, 1, 2, 2, 2]);
+        assert_eq!(doc_ids, vec![doc_id1, doc_id1, doc_id1, doc_id2, doc_id2, doc_id2]);
 
         info!("Results: {:?}", res);
     }
@@ -120,10 +128,13 @@ mod tests {
         let tmp1 = tmpdir.path().to_path_buf();
         let tmp2 = tmpdir.path().to_path_buf();
 
+        
+
         let t_writer = std::thread::spawn(|| {
+            let doc_id1 = Uuid::new_v4();
             let mut writer = Writer::open(tmp1).unwrap();
             for i in 0..500 {
-                writer.push(1, &create_vector(3, i as f32)).unwrap();
+                writer.push(doc_id1, &create_vector(3, i as f32)).unwrap();
                 writer.commit();
             }
         });
@@ -148,11 +159,12 @@ mod tests {
         let mut writer = Writer::open(tmpdir.path()).unwrap();
 
         for i in 1..100 {
-            writer.push(i, &create_vector(700, i as f32)).unwrap();
+            let uuid = Uuid::from_u128(i as u128);
+            writer.push(uuid, &create_vector(700, i as f32)).unwrap();
         }
         writer.commit();
 
-        let idxs: Vec<_> = (100..10_000).into_iter().collect();
+        let idxs: Vec<_> = (100..10_000).into_iter().map(|i| Uuid::from_u128(i as u128)).collect();
         let vectors: Vec<_> = (100..10_000)
             .into_iter()
             .map(|i| create_vector(700, i as f32))
