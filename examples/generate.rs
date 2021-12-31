@@ -1,6 +1,6 @@
 use granne::{
     angular::{self, Vector},
-    BuildConfig, Granne, GranneBuilder, Index,
+    BuildConfig, GranneBuilder, Index,
 };
 use rand::prelude::*;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};

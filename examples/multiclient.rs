@@ -1,4 +1,4 @@
-use futures::{future::join_all, join};
+use futures::{future::join_all};
 use granne::{
     angular::{self, Vector},
     BuildConfig, Builder, Granne, GranneBuilder,
@@ -15,13 +15,13 @@ fn random_vector(n_dim: usize) -> Vector<'static> {
 #[tokio::main]
 async fn main() {
     let n_vectors = 1000;
-    let n_chunks = 4;
+    let _n_chunks = 4;
     let n_dim = 800;
 
     let t1 = tokio::spawn(async move {
         //Writer::open("data");
 
-        let index_file = std::fs::File::open("data/index.dat").unwrap();
+        let _index_file = std::fs::File::open("data/index.dat").unwrap();
         let elements_file = std::fs::File::open("data/elements.dat").unwrap();
 
         let mut elements = unsafe { angular::Vectors::from_file(&elements_file).unwrap() };

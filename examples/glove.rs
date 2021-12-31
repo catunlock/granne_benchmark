@@ -24,9 +24,7 @@ fn parse_line(line: &str) -> std::io::Result<(String, granne::angular::Vector<'s
 }
 
 fn main() -> std::io::Result<()> {
-    let input_file: String = std::env::args()
-        .skip(1)
-        .next()
+    let input_file: String = std::env::args().nth(1)
         .expect("Missing input_file!");
     let file = BufReader::new(File::open(input_file)?);
 

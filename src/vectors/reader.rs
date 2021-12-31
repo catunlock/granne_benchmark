@@ -37,7 +37,7 @@ impl<'a> Reader<'a> {
         let index = match Reader::load_index(location.index_path(), location.elements_path()) {
             Ok(index) => index,
             Err(e) => {
-                let message = format!("{}", e.to_string());
+                let message = e.to_string();
                 return Err(message);
             }
         };

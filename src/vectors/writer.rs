@@ -82,7 +82,7 @@ impl<'a> Writer<'a> {
 
     pub fn push(&mut self, doc_id: &VectorIdentifier, vector: &Vector) -> Result<(), String> {
         trace!("Pushing vector for doc: {}", doc_id);
-        match self.index_map.insert(&doc_id, self.next_idx()) {
+        match self.index_map.insert(doc_id, self.next_idx()) {
             Ok(()) => {
                 self.elements.push(vector);
                 Ok(())
@@ -107,7 +107,7 @@ impl<'a> Writer<'a> {
 
         let vec_ids: Vec<_> = (start_id..end_id).collect();
 
-        self.map_batch(&batch, &vec_ids)?;
+        self.map_batch(batch, &vec_ids)?;
 
         Ok(())
     }
@@ -117,9 +117,9 @@ impl<'a> Writer<'a> {
         batch: &[(VectorIdentifier, Vec<f32>)],
         vec_ids: &[usize],
     ) -> Result<(), String> {
-        let doc_ids: Vec<_> = batch.into_iter().map(|(vi, _)| vi.clone()).collect();
+        let doc_ids: Vec<_> = batch.iter().map(|(vi, _)| vi.clone()).collect();
 
-        match self.index_map.insert_batch(&doc_ids, &vec_ids) {
+        match self.index_map.insert_batch(&doc_ids, vec_ids) {
             Ok(()) => {
                 for (_, v) in batch {
                     let v = Vector::from_iter(v.clone().into_iter());
