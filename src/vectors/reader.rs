@@ -64,6 +64,7 @@ impl<'a> Reader<'a> {
         debug!("Search for vector");
 
         if self.is_dirty() {
+            debug!("Is dirty! Reloading...");
             self.reload();
             self.clean_dirty();
         }
