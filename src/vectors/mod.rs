@@ -3,12 +3,14 @@ pub mod directory;
 pub mod index_map;
 pub mod lock;
 pub mod reader;
+pub mod vector_identifier;
 pub mod writer;
 
 pub use deleted_db::*;
 pub use index_map::*;
 pub use lock::*;
 pub use reader::*;
+pub use vector_identifier::*;
 pub use writer::*;
 
 const COMMIT_LOCK_PATH: &str = "COMMIT_LOCK";
@@ -28,7 +30,7 @@ mod tests {
     use tempfile::TempDir;
     use uuid::Uuid;
 
-    use crate::vectors::Writer;
+    use crate::vectors::{VectorIdentifier, Writer};
 
     use super::Reader;
 
@@ -62,23 +64,40 @@ mod tests {
         let tmpdir = TempDir::new().unwrap();
         let mut writer = Writer::open(tmpdir.path()).unwrap();
 
-        let doc_id1 = Uuid::new_v4();
-        let doc_id2 = Uuid::new_v4();
-        let doc_id3 = Uuid::new_v4();
+        let doc_id1 = VectorIdentifier {
+            doc_id: Uuid::from_u128(0),
+            field: "body".to_string(),
+            paragraph: 0,
+            sentence: 1,
+        };
 
-        writer.push(doc_id1, &create_vector(3, 1.0)).unwrap();
-        writer.push(doc_id1, &create_vector(3, 2.0)).unwrap();
-        writer.push(doc_id1, &create_vector(3, 3.0)).unwrap();
+        let doc_id2 = VectorIdentifier {
+            doc_id: Uuid::from_u128(0),
+            field: "body".to_string(),
+            paragraph: 0,
+            sentence: 2,
+        };
+
+        let doc_id3 = VectorIdentifier {
+            doc_id: Uuid::from_u128(0),
+            field: "body".to_string(),
+            paragraph: 0,
+            sentence: 3,
+        };
+
+        writer.push(&doc_id1, &create_vector(3, 1.0)).unwrap();
+        writer.push(&doc_id1, &create_vector(3, 2.0)).unwrap();
+        writer.push(&doc_id1, &create_vector(3, 3.0)).unwrap();
 
         writer.commit();
 
-        writer.push(doc_id2, &create_vector(3, 4.0)).unwrap();
-        writer.push(doc_id2, &create_vector(3, 5.0)).unwrap();
+        writer.push(&doc_id2, &create_vector(3, 4.0)).unwrap();
+        writer.push(&doc_id2, &create_vector(3, 5.0)).unwrap();
 
         writer.commit();
 
-        writer.push(doc_id3, &create_vector(3, 6.0)).unwrap();
-        writer.push(doc_id3, &create_vector(3, 7.0)).unwrap();
+        writer.push(&doc_id3, &create_vector(3, 6.0)).unwrap();
+        writer.push(&doc_id3, &create_vector(3, 7.0)).unwrap();
 
         writer.commit();
     }
@@ -90,33 +109,56 @@ mod tests {
         let tmpdir = TempDir::new().unwrap();
         let mut writer = Writer::open(tmpdir.path()).unwrap();
 
-        let doc_id1 = Uuid::new_v4();
+        let doc_id1 = VectorIdentifier {
+            doc_id: Uuid::from_u128(0),
+            field: "body".to_string(),
+            paragraph: 0,
+            sentence: 1,
+        };
 
-        writer.push(doc_id1, &create_vector(3, 1.0)).unwrap();
-        writer.push(doc_id1, &create_vector(3, 2.0)).unwrap();
-        writer.push(doc_id1, &create_vector(3, 3.0)).unwrap();
+        writer.push(&doc_id1, &create_vector(3, 1.0)).unwrap();
+        writer.push(&doc_id1, &create_vector(3, 2.0)).unwrap();
+        writer.push(&doc_id1, &create_vector(3, 3.0)).unwrap();
 
         writer.commit();
 
         let reader = Reader::open(tmpdir.path()).unwrap();
         let res = reader.search(&create_vector(3, 1.0));
 
-        let doc_ids: Vec<_> = res.iter().map(|(doc_id, _score)| *doc_id).collect();
-        assert_eq!(doc_ids, vec![doc_id1, doc_id1, doc_id1]);
+        let doc_ids: Vec<_> = res.iter().map(|(doc_id, _score)| doc_id.clone()).collect();
+        assert_eq!(
+            doc_ids,
+            vec![doc_id1.clone(), doc_id1.clone(), doc_id1.clone()]
+        );
 
         info!("Results: {:?}", res);
-        let doc_id2 = Uuid::new_v4();
+        let doc_id2 = VectorIdentifier {
+            doc_id: Uuid::from_u128(0),
+            field: "body".to_string(),
+            paragraph: 0,
+            sentence: 2,
+        };
 
-        writer.push(doc_id2, &create_vector(3, 4.0)).unwrap();
-        writer.push(doc_id2, &create_vector(3, 5.0)).unwrap();
-        writer.push(doc_id2, &create_vector(3, 6.0)).unwrap();
+        writer.push(&doc_id2, &create_vector(3, 4.0)).unwrap();
+        writer.push(&doc_id2, &create_vector(3, 5.0)).unwrap();
+        writer.push(&doc_id2, &create_vector(3, 6.0)).unwrap();
 
         writer.commit();
 
         let res = reader.search(&create_vector(3, 3.0));
 
-        let doc_ids: Vec<_> = res.iter().map(|(doc_id, _score)| *doc_id).collect();
-        assert_eq!(doc_ids, vec![doc_id1, doc_id1, doc_id1, doc_id2, doc_id2, doc_id2]);
+        let doc_ids: Vec<_> = res.iter().map(|(doc_id, _score)| doc_id.clone()).collect();
+        assert_eq!(
+            doc_ids,
+            vec![
+                doc_id1.clone(),
+                doc_id1.clone(),
+                doc_id1.clone(),
+                doc_id2.clone(),
+                doc_id2.clone(),
+                doc_id2.clone()
+            ]
+        );
 
         info!("Results: {:?}", res);
     }
@@ -128,13 +170,17 @@ mod tests {
         let tmp1 = tmpdir.path().to_path_buf();
         let tmp2 = tmpdir.path().to_path_buf();
 
-        
-
         let t_writer = std::thread::spawn(|| {
-            let doc_id1 = Uuid::new_v4();
+            let doc_id1 = VectorIdentifier {
+                doc_id: Uuid::from_u128(0),
+                field: "body".to_string(),
+                paragraph: 0,
+                sentence: 1,
+            };
+
             let mut writer = Writer::open(tmp1).unwrap();
             for i in 0..500 {
-                writer.push(doc_id1, &create_vector(3, i as f32)).unwrap();
+                writer.push(&doc_id1, &create_vector(3, i as f32)).unwrap();
                 writer.commit();
             }
         });
@@ -159,18 +205,33 @@ mod tests {
         let mut writer = Writer::open(tmpdir.path()).unwrap();
 
         for i in 1..100 {
-            let uuid = Uuid::from_u128(i as u128);
-            writer.push(uuid, &create_vector(700, i as f32)).unwrap();
+            let doc_id = VectorIdentifier {
+                doc_id: Uuid::from_u128(0),
+                field: "body".to_string(),
+                paragraph: 0,
+                sentence: i,
+            };
+            writer.push(&doc_id, &create_vector(700, i as f32)).unwrap();
         }
         writer.commit();
 
-        let idxs: Vec<_> = (100..10_000).into_iter().map(|i| Uuid::from_u128(i as u128)).collect();
-        let vectors: Vec<_> = (100..10_000)
+        let batch: Vec<_> = (100..10000)
             .into_iter()
-            .map(|i| create_vector(700, i as f32))
+            .map(|i| {
+                let vi = VectorIdentifier {
+                    doc_id: Uuid::from_u128(i as u128),
+                    field: "body".to_string(),
+                    paragraph: 0,
+                    sentence: 0,
+                };
+
+                let vector = create_vector(700, i as f32).into_vec();
+
+                (vi, vector)
+            })
             .collect();
 
-        writer.push_batch(&idxs, &vectors).unwrap();
+        writer.push_batch(&batch).unwrap();
         writer.commit();
 
         let reader = Reader::open(tmpdir.path()).unwrap();

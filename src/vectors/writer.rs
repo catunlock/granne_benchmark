@@ -1,4 +1,4 @@
-use std::{fs::File, path::PathBuf, time::Instant, fmt};
+use std::{fmt, fs::File, path::PathBuf, time::Instant};
 
 use granne::{
     angular::{self, Vector, Vectors},
@@ -6,9 +6,8 @@ use granne::{
 };
 use log::{debug, error, trace};
 use tempfile::NamedTempFile;
-use uuid::Uuid;
 
-use super::{directory::Location, DeletedDBWriter, IndexMap, Lock};
+use super::{directory::Location, DeletedDBWriter, IndexMap, Lock, VectorIdentifier};
 
 pub struct Writer<'a> {
     location: Location,
@@ -23,13 +22,13 @@ pub struct Writer<'a> {
 impl fmt::Debug for Writer<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Writer")
-        .field("location", &self.location)
-        .field("build_config", &self.build_config)
-        .field("commit_lock", &self.commit_lock)
-        .field("_writer_lock", &self.writer_lock)
-        .field("deleted", &self.deleted)
-        .field("index_map", &self.index_map)
-        .finish()
+            .field("location", &self.location)
+            .field("build_config", &self.build_config)
+            .field("commit_lock", &self.commit_lock)
+            .field("_writer_lock", &self.writer_lock)
+            .field("deleted", &self.deleted)
+            .field("index_map", &self.index_map)
+            .finish()
     }
 }
 
@@ -50,6 +49,7 @@ impl<'a> Writer<'a> {
         if let Err(e) = writer_lock.try_lock() {
             let message = format!("Adquiring lock for Writer: {}.\nCheck if another instance of nucliadb_node is running.", e);
             error!("{}", message);
+            return Err(message);
         }
 
         let elements = Writer::open_elements(location.elements_path());
@@ -80,9 +80,9 @@ impl<'a> Writer<'a> {
         }
     }
 
-    pub fn push(&mut self, doc_id: Uuid, vector: &Vector) -> Result<(), String> {
+    pub fn push(&mut self, doc_id: &VectorIdentifier, vector: &Vector) -> Result<(), String> {
         trace!("Pushing vector for doc: {}", doc_id);
-        match self.index_map.insert(doc_id, self.next_idx()) {
+        match self.index_map.insert(&doc_id, self.next_idx()) {
             Ok(()) => {
                 self.elements.push(vector);
                 Ok(())
@@ -94,35 +94,36 @@ impl<'a> Writer<'a> {
         }
     }
 
-    pub fn push_vec(&mut self, doc_id: Uuid, vector: Vec<f32>) -> Result<(), String> {
+    pub fn push_vec(&mut self, doc_id: &VectorIdentifier, vector: Vec<f32>) -> Result<(), String> {
         let vector = Vector::from_iter(vector.into_iter());
         self.push(doc_id, &vector)
     }
 
-    pub fn push_batch(&mut self, doc_ids: &[Uuid], vectors: &[Vector]) -> Result<(), String> {
-        trace!("Pushing batch of {} docs", doc_ids.len());
+    pub fn push_batch(&mut self, batch: &[(VectorIdentifier, Vec<f32>)]) -> Result<(), String> {
+        trace!("Pushing batch of {} docs", batch.len());
 
         let start_id = self.next_idx();
-        let end_id = start_id + doc_ids.len();
+        let end_id = start_id + batch.len();
 
-        let id_list: Vec<_> = (start_id..end_id).collect();
+        let vec_ids: Vec<_> = (start_id..end_id).collect();
 
-        let step = 5000;
-        for i in 0..doc_ids.len()/step {
-            let start = i*step;
-            let end = (i+1)*step;
-            println!("map batch {} - {}", start, end);
-            self.map_batch(&doc_ids[start..end], &id_list[start..end], vectors)?;
-        }
+        self.map_batch(&batch, &vec_ids)?;
 
         Ok(())
     }
 
-    fn map_batch(&mut self, doc_ids: &[Uuid], vec_ids: &[usize], vectors: &[Vector]) -> Result<(), String> {
-        match self.index_map.insert_batch(doc_ids, &vec_ids) {
+    fn map_batch(
+        &mut self,
+        batch: &[(VectorIdentifier, Vec<f32>)],
+        vec_ids: &[usize],
+    ) -> Result<(), String> {
+        let doc_ids: Vec<_> = batch.into_iter().map(|(vi, _)| vi.clone()).collect();
+
+        match self.index_map.insert_batch(&doc_ids, &vec_ids) {
             Ok(()) => {
-                for v in vectors {
-                    self.elements.push(v);
+                for (_, v) in batch {
+                    let v = Vector::from_iter(v.clone().into_iter());
+                    self.elements.push(&v);
                 }
                 Ok(())
             }
@@ -133,9 +134,9 @@ impl<'a> Writer<'a> {
         }
     }
 
-    pub fn delete(&self, doc_id: Uuid) -> Result<(), String> {
+    pub fn delete(&self, doc_id: VectorIdentifier) -> Result<(), String> {
         trace!("Marking all vectors of doc {} as deleted", doc_id);
-        match self.index_map.get_vec_ids(doc_id) {
+        match self.index_map.get_vec_ids(&doc_id) {
             Ok(vec_ids) => match self.deleted.add_batch(vec_ids.into_iter()) {
                 Ok(()) => Ok(()),
                 Err(e) => {
@@ -263,5 +264,3 @@ mod test {
         assert_eq!(elements.get_element(2).0[2], 2.0);
     }
 }
-
-

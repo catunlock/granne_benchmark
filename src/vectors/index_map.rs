@@ -1,6 +1,7 @@
 use lmdb::Database;
 use serde::Serialize;
-use uuid::Uuid;
+
+use super::VectorIdentifier;
 extern crate lmdb_zero as lmdb;
 
 #[derive(Debug)]
@@ -25,13 +26,19 @@ impl<'a> IndexMap<'a> {
                 .open(path, flags, 0o666)
                 .unwrap()
         };
-
         let env_inverted = unsafe {
             lmdb::EnvBuilder::new()
                 .unwrap()
                 .open(&inverted_path, flags, 0o666)
                 .unwrap()
         };
+
+        unsafe {
+            env.set_mapsize(1099511627776).unwrap();
+        }
+        unsafe {
+            env_inverted.set_mapsize(1099511627776).unwrap();
+        }
 
         let db = lmdb::Database::open(env, None, &database_options)?;
         let db_inverted = lmdb::Database::open(env_inverted, None, &database_options_inverted)?;
@@ -40,7 +47,7 @@ impl<'a> IndexMap<'a> {
     }
 
     /// Returns all the internal vectors ids for a document.
-    pub fn get_vec_ids(&self, doc_id: Uuid) -> Result<Vec<usize>, lmdb::Error> {
+    pub fn get_vec_ids(&self, doc_id: &VectorIdentifier) -> Result<Vec<usize>, lmdb::Error> {
         trace!("Obtaining all vector idxs for document: {}", doc_id);
         let key = bincode::serialize(&doc_id).unwrap();
 
@@ -68,7 +75,7 @@ impl<'a> IndexMap<'a> {
     }
 
     /// Returns all the internal vectors ids for a document.
-    pub fn get_doc_id(&self, vec_id: usize) -> Result<Uuid, lmdb::Error> {
+    pub fn get_doc_id(&self, vec_id: usize) -> Result<VectorIdentifier, lmdb::Error> {
         let key = bincode::serialize(&vec_id).unwrap();
 
         let env = self.db_inverted.env();
@@ -94,7 +101,7 @@ impl<'a> IndexMap<'a> {
     }
 
     /// Adds a new internal vec_id to the list of associated vectors of a document.
-    pub fn insert(&self, doc_id: Uuid, vec_id: usize) -> Result<(), lmdb::Error> {
+    pub fn insert(&self, doc_id: &VectorIdentifier, vec_id: usize) -> Result<(), lmdb::Error> {
         trace!("Add doc_id {} <-> vec_id {}", doc_id, vec_id);
 
         let key = bincode::serialize(&doc_id).unwrap();
@@ -106,7 +113,11 @@ impl<'a> IndexMap<'a> {
         Ok(())
     }
 
-    fn insert_at_batch<T: Serialize, K: Serialize>(db: &Database, key: &[T], val: &[K]) -> Result<(), lmdb::Error> {
+    fn insert_at_batch<T: Serialize, K: Serialize>(
+        db: &Database,
+        key: &[T],
+        val: &[K],
+    ) -> Result<(), lmdb::Error> {
         let env = db.env();
         let txn = lmdb::WriteTransaction::new(env)?;
         let flags = lmdb::put::Flags::empty();
@@ -124,7 +135,11 @@ impl<'a> IndexMap<'a> {
     }
 
     /// Adds a new internal vec_id to the list of associated vectors of a document.
-    pub fn insert_batch(&self, doc_ids: &[Uuid], vec_ids: &[usize]) -> Result<(), lmdb::Error> {
+    pub fn insert_batch(
+        &self,
+        doc_ids: &[VectorIdentifier],
+        vec_ids: &[usize],
+    ) -> Result<(), lmdb::Error> {
         assert_eq!(doc_ids.len(), vec_ids.len());
         IndexMap::insert_at_batch(&self.db, doc_ids, vec_ids)?;
         IndexMap::insert_at_batch(&self.db_inverted, vec_ids, doc_ids)?;
@@ -135,7 +150,7 @@ impl<'a> IndexMap<'a> {
     /// Deletes all the entries of a doc_id in the database.
     ///
     /// The inverted index is not modified since these elements still exists in granne vectors
-    pub fn delete(&self, doc_id: Uuid) -> Result<(), lmdb::Error> {
+    pub fn delete(&self, doc_id: &VectorIdentifier) -> Result<(), lmdb::Error> {
         let env = self.db.env();
         let txn = lmdb::WriteTransaction::new(env)?;
         {
@@ -154,6 +169,8 @@ mod test {
     use tempfile::tempdir;
     use uuid::Uuid;
 
+    use crate::vectors::VectorIdentifier;
+
     use super::IndexMap;
 
     fn init() {
@@ -171,14 +188,25 @@ mod test {
         let path = tempdir.path().to_str().unwrap();
         let map = IndexMap::open(path).unwrap();
 
-        let doc_id0 = Uuid::new_v4();
-        let doc_id1 = Uuid::new_v4();
+        let doc_id0 = VectorIdentifier {
+            doc_id: Uuid::from_u128(0),
+            field: "body".to_string(),
+            paragraph: 0,
+            sentence: 0,
+        };
 
-        map.insert(doc_id0, 0).unwrap();
-        map.insert(doc_id1, 4).unwrap();
+        let doc_id1 = VectorIdentifier {
+            doc_id: Uuid::from_u128(0),
+            field: "body".to_string(),
+            paragraph: 0,
+            sentence: 1,
+        };
 
-        assert_eq!(map.get_vec_ids(doc_id0).unwrap(), vec![0]);
-        assert_eq!(map.get_vec_ids(doc_id1).unwrap(), vec![4]);
+        map.insert(&doc_id0, 0).unwrap();
+        map.insert(&doc_id1, 4).unwrap();
+
+        assert_eq!(map.get_vec_ids(&doc_id0).unwrap(), vec![0]);
+        assert_eq!(map.get_vec_ids(&doc_id1).unwrap(), vec![4]);
 
         assert_eq!(map.get_doc_id(0).unwrap(), doc_id0);
         assert_eq!(map.get_doc_id(4).unwrap(), doc_id1);
@@ -192,17 +220,28 @@ mod test {
         let path = tempdir.path().to_str().unwrap();
         let map = IndexMap::open(path).unwrap();
 
-        let doc_id0 = Uuid::new_v4();
-        let doc_id1 = Uuid::new_v4();
+        let doc_id0 = VectorIdentifier {
+            doc_id: Uuid::from_u128(0),
+            field: "body".to_string(),
+            paragraph: 0,
+            sentence: 0,
+        };
 
-        map.insert(doc_id0, 0).unwrap();
-        map.insert(doc_id0, 1).unwrap();
-        map.insert(doc_id0, 2).unwrap();
-        map.insert(doc_id1, 3).unwrap();
-        map.insert(doc_id1, 4).unwrap();
+        let doc_id1 = VectorIdentifier {
+            doc_id: Uuid::from_u128(0),
+            field: "body".to_string(),
+            paragraph: 0,
+            sentence: 1,
+        };
 
-        assert_eq!(map.get_vec_ids(doc_id0).unwrap(), vec![0, 1, 2]);
-        assert_eq!(map.get_vec_ids(doc_id1).unwrap(), vec![3, 4]);
+        map.insert(&doc_id0, 0).unwrap();
+        map.insert(&doc_id0, 1).unwrap();
+        map.insert(&doc_id0, 2).unwrap();
+        map.insert(&doc_id1, 3).unwrap();
+        map.insert(&doc_id1, 4).unwrap();
+
+        assert_eq!(map.get_vec_ids(&doc_id0).unwrap(), vec![0, 1, 2]);
+        assert_eq!(map.get_vec_ids(&doc_id1).unwrap(), vec![3, 4]);
 
         assert_eq!(map.get_doc_id(0).unwrap(), doc_id0);
         assert_eq!(map.get_doc_id(1).unwrap(), doc_id0);
@@ -220,21 +259,32 @@ mod test {
         let path = tempdir.path().to_str().unwrap();
         let map = IndexMap::open(path).unwrap();
 
-        let doc_id0 = Uuid::new_v4();
-        let doc_id1 = Uuid::new_v4();
+        let doc_id0 = VectorIdentifier {
+            doc_id: Uuid::from_u128(0),
+            field: "body".to_string(),
+            paragraph: 0,
+            sentence: 0,
+        };
 
-        map.insert(doc_id0, 0).unwrap();
-        map.insert(doc_id0, 1).unwrap();
-        map.insert(doc_id0, 2).unwrap();
-        map.insert(doc_id1, 3).unwrap();
-        map.insert(doc_id1, 4).unwrap();
-        map.insert(doc_id1, 5).unwrap();
+        let doc_id1 = VectorIdentifier {
+            doc_id: Uuid::from_u128(0),
+            field: "body".to_string(),
+            paragraph: 0,
+            sentence: 1,
+        };
 
-        assert_eq!(map.get_vec_ids(doc_id0).unwrap(), vec![0, 1, 2]);
+        map.insert(&doc_id0, 0).unwrap();
+        map.insert(&doc_id0, 1).unwrap();
+        map.insert(&doc_id0, 2).unwrap();
+        map.insert(&doc_id1, 3).unwrap();
+        map.insert(&doc_id1, 4).unwrap();
+        map.insert(&doc_id1, 5).unwrap();
 
-        map.delete(doc_id0).unwrap();
-        assert!(map.get_vec_ids(doc_id0).unwrap().is_empty());
-        assert_eq!(map.get_vec_ids(doc_id1).unwrap(), vec![3, 4, 5]);
+        assert_eq!(map.get_vec_ids(&doc_id0).unwrap(), vec![0, 1, 2]);
+
+        map.delete(&doc_id0).unwrap();
+        assert!(map.get_vec_ids(&doc_id0).unwrap().is_empty());
+        assert_eq!(map.get_vec_ids(&doc_id1).unwrap(), vec![3, 4, 5]);
 
         // Vectors still exist in granne vectors container, so we don't delete them from the inverse
         // index
@@ -242,8 +292,8 @@ mod test {
         assert_eq!(map.get_doc_id(1).unwrap(), doc_id0);
         assert_eq!(map.get_doc_id(2).unwrap(), doc_id0);
 
-        map.delete(doc_id1).unwrap();
-        assert!(map.get_vec_ids(doc_id1).unwrap().is_empty());
+        map.delete(&doc_id1).unwrap();
+        assert!(map.get_vec_ids(&doc_id1).unwrap().is_empty());
     }
 
     #[test]
@@ -254,8 +304,19 @@ mod test {
         let path = tempdir.path().to_str().unwrap();
         let map = IndexMap::open(path).unwrap();
 
-        let doc_id0 = Uuid::new_v4();
-        let doc_id1 = Uuid::new_v4();
+        let doc_id0 = VectorIdentifier {
+            doc_id: Uuid::from_u128(0),
+            field: "body".to_string(),
+            paragraph: 0,
+            sentence: 0,
+        };
+
+        let doc_id1 = VectorIdentifier {
+            doc_id: Uuid::from_u128(0),
+            field: "body".to_string(),
+            paragraph: 0,
+            sentence: 1,
+        };
 
         /*
         map.insert(0, 0).unwrap();
@@ -264,12 +325,20 @@ mod test {
         map.insert(1, 3).unwrap();
         map.insert(1, 4).unwrap();
         */
-        map.insert_batch(&[doc_id0, doc_id0, doc_id0, doc_id1, doc_id1],
-             &[0, 1, 2, 3, 4])
-            .unwrap();
+        map.insert_batch(
+            &[
+                doc_id0.clone(),
+                doc_id0.clone(),
+                doc_id0.clone(),
+                doc_id1.clone(),
+                doc_id1.clone(),
+            ],
+            &[0, 1, 2, 3, 4],
+        )
+        .unwrap();
 
-        assert_eq!(map.get_vec_ids(doc_id0).unwrap(), vec![0, 1, 2]);
-        assert_eq!(map.get_vec_ids(doc_id1).unwrap(), vec![3, 4]);
+        assert_eq!(map.get_vec_ids(&doc_id0).unwrap(), vec![0, 1, 2]);
+        assert_eq!(map.get_vec_ids(&doc_id1).unwrap(), vec![3, 4]);
 
         assert_eq!(map.get_doc_id(0).unwrap(), doc_id0);
         assert_eq!(map.get_doc_id(1).unwrap(), doc_id0);

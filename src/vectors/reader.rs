@@ -2,10 +2,9 @@ use granne::{
     angular::{self, Vector, Vectors},
     Granne,
 };
-use uuid::Uuid;
-use std::{cell::RefCell, collections::HashMap, path::PathBuf, fmt, io};
+use std::{cell::RefCell, collections::HashMap, fmt, io, path::PathBuf};
 
-use super::{directory::Location, DeletedDBReader, IndexMap, Lock};
+use super::{directory::Location, DeletedDBReader, IndexMap, Lock, VectorIdentifier};
 
 pub struct Reader<'a> {
     location: Location,
@@ -17,34 +16,30 @@ pub struct Reader<'a> {
     index_map: IndexMap<'a>,
 }
 
-impl fmt::Debug  for Reader<'_> {
+impl fmt::Debug for Reader<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Reader")
-        .field("location", &self.location)
-        .field("commit_lock", &self.commit_lock)
-        .field("max_search", &self.max_search)
-        .field("num_neighbors", &self.num_neighbors)
-        .field("deleted", &self.deleted)
-        .field("index_map", &self.index_map)
-        .finish()
+            .field("location", &self.location)
+            .field("commit_lock", &self.commit_lock)
+            .field("max_search", &self.max_search)
+            .field("num_neighbors", &self.num_neighbors)
+            .field("deleted", &self.deleted)
+            .field("index_map", &self.index_map)
+            .finish()
     }
 }
-
 
 impl<'a> Reader<'a> {
     pub fn open<T: Into<PathBuf>>(location: T) -> Result<Self, String> {
         let location = Location(location.into());
         let commit_lock = Lock::open(&location.commit_lock_path()).unwrap();
 
-        let index = match Reader::load_index(
-            location.index_path(),
-            location.elements_path(),
-        ) {
+        let index = match Reader::load_index(location.index_path(), location.elements_path()) {
             Ok(index) => index,
             Err(e) => {
                 let message = format!("{}", e.to_string());
-                return Err(message)
-            },
+                return Err(message);
+            }
         };
 
         let index = RefCell::new(index);
@@ -65,7 +60,7 @@ impl<'a> Reader<'a> {
         })
     }
 
-    pub fn search(&self, query_vector: &Vector<'static>) -> Vec<(Uuid, f32)> {
+    pub fn search(&self, query_vector: &Vector<'static>) -> Vec<(VectorIdentifier, f32)> {
         debug!("Search for vector");
 
         if self.is_dirty() {
@@ -90,12 +85,15 @@ impl<'a> Reader<'a> {
             .collect()
     }
 
-    pub fn search_vec(&self, query_vector: Vec<f32>) -> Vec<(Uuid, f32)> {
+    pub fn search_vec(&self, query_vector: Vec<f32>) -> Vec<(VectorIdentifier, f32)> {
         let query_vector = Vector::from_iter(query_vector.into_iter());
         self.search(&query_vector)
     }
 
-    fn load_index<T: Into<PathBuf>>(index_path: T, elements_path: T) -> Result<Granne<'a, Vectors<'a>>, io::Error> {
+    fn load_index<T: Into<PathBuf>>(
+        index_path: T,
+        elements_path: T,
+    ) -> Result<Granne<'a, Vectors<'a>>, io::Error> {
         debug!("Loading (memory-mapping) index and vectors.");
         let index_file = std::fs::File::open(index_path.into())?;
         let elements_file = std::fs::File::open(elements_path.into())?;
@@ -122,10 +120,9 @@ impl<'a> Reader<'a> {
         debug!("Reloading!");
 
         self.commit_lock.lock();
-        self.index.replace(Reader::load_index(
-            self.location.index_path(),
-            self.location.elements_path(),
-        ).unwrap());
+        self.index.replace(
+            Reader::load_index(self.location.index_path(), self.location.elements_path()).unwrap(),
+        );
         self.commit_lock.unlock();
     }
 }

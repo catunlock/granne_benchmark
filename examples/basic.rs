@@ -31,46 +31,56 @@ fn main() {
         .parse()
         .unwrap();
 
-    eprintln!("n_dim: {}, n_vectors: {}, n_results: {}", n_dim, n_vectors, n_results);
+    eprintln!(
+        "n_dim: {}, n_vectors: {}, n_results: {}",
+        n_dim, n_vectors, n_results
+    );
 
     let mut elements: angular::Vectors = granne::angular::Vectors::new();
-    
+
     eprintln!("Inserting vectors into the collection - {:?}", t0.elapsed());
 
-    let n_chunks = std::cmp::max(1,n_vectors/200000);
+    let n_chunks = std::cmp::max(1, n_vectors / 200000);
     eprintln!("Splitting into {} chunks", n_chunks);
     for _ in 0..n_chunks {
-        let vectors: Vec<_> = (0..n_vectors/n_chunks).into_par_iter().map(|_| random_vector(n_dim)).collect();
+        let vectors: Vec<_> = (0..n_vectors / n_chunks)
+            .into_par_iter()
+            .map(|_| random_vector(n_dim))
+            .collect();
 
         for v in vectors {
             elements.push(&v);
         }
     }
 
-
     eprintln!("Building the index - {:?}", t0.elapsed());
-    let mut builder = GranneBuilder::new(BuildConfig::default().show_progress(true).max_search(100), elements);
+    let mut builder = GranneBuilder::new(
+        BuildConfig::default().show_progress(true).max_search(100),
+        elements,
+    );
     builder.build();
-    
+
     {
         std::fs::create_dir_all("data").unwrap();
         let mut index_file = std::fs::File::create("data/index.dat").unwrap();
         let mut elements_file = std::fs::File::create("data/elements.dat").unwrap();
-    
+
         eprintln!("Writing index to file - {:?}", t0.elapsed());
         builder.write_index(&mut index_file).unwrap();
-    
+
         eprintln!("Writing elemetns to file - {:?}", t0.elapsed());
-        builder.write_elements(&mut elements_file).unwrap();    
+        builder.write_elements(&mut elements_file).unwrap();
     }
-    
+
     let index_file = std::fs::File::open("data/index.dat").unwrap();
     let elements_file = std::fs::File::open("data/elements.dat").unwrap();
 
-    eprintln!("loading (memory-mapping) index and vectors - {:?}", t0.elapsed());
+    eprintln!(
+        "loading (memory-mapping) index and vectors - {:?}",
+        t0.elapsed()
+    );
     let elements = unsafe { angular::Vectors::from_file(&elements_file).unwrap() };
     let index = unsafe { Granne::from_file(&index_file, elements).unwrap() };
-
 
     // max_search controls how extensive the search is
     eprintln!("Querying a random vector - {:?}", t0.elapsed());
@@ -79,7 +89,7 @@ fn main() {
     let res = index.search(&query_vector, max_search, n_results);
 
     eprintln!("Found {} - {:?}", res.len(), t0.elapsed());
-    
+
     for (vec_id, score) in res {
         let v = index.get_element(vec_id);
         eprintln!("{} - {:?}", score, v.as_slice());
