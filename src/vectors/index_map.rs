@@ -191,15 +191,17 @@ mod test {
         let doc_id0 = VectorIdentifier {
             doc_id: Uuid::from_u128(0),
             field: "body".to_string(),
-            paragraph: 0,
-            sentence: 0,
+            paragraph_id: Uuid::from_u128(0),
+            start: 0,
+            end: 100
         };
 
         let doc_id1 = VectorIdentifier {
-            doc_id: Uuid::from_u128(0),
+            doc_id: Uuid::from_u128(1),
             field: "body".to_string(),
-            paragraph: 0,
-            sentence: 1,
+            paragraph_id: Uuid::from_u128(1),
+            start: 100,
+            end: 200
         };
 
         map.insert(&doc_id0, 0).unwrap();
@@ -223,15 +225,17 @@ mod test {
         let doc_id0 = VectorIdentifier {
             doc_id: Uuid::from_u128(0),
             field: "body".to_string(),
-            paragraph: 0,
-            sentence: 0,
+            paragraph_id: Uuid::from_u128(0),
+            start: 0,
+            end: 100
         };
 
         let doc_id1 = VectorIdentifier {
-            doc_id: Uuid::from_u128(0),
+            doc_id: Uuid::from_u128(1),
             field: "body".to_string(),
-            paragraph: 0,
-            sentence: 1,
+            paragraph_id: Uuid::from_u128(1),
+            start: 100,
+            end: 200
         };
 
         map.insert(&doc_id0, 0).unwrap();
@@ -262,15 +266,17 @@ mod test {
         let doc_id0 = VectorIdentifier {
             doc_id: Uuid::from_u128(0),
             field: "body".to_string(),
-            paragraph: 0,
-            sentence: 0,
+            paragraph_id: Uuid::from_u128(0),
+            start: 0,
+            end: 100
         };
 
         let doc_id1 = VectorIdentifier {
-            doc_id: Uuid::from_u128(0),
+            doc_id: Uuid::from_u128(1),
             field: "body".to_string(),
-            paragraph: 0,
-            sentence: 1,
+            paragraph_id: Uuid::from_u128(1),
+            start: 100,
+            end: 200
         };
 
         map.insert(&doc_id0, 0).unwrap();
@@ -307,15 +313,17 @@ mod test {
         let doc_id0 = VectorIdentifier {
             doc_id: Uuid::from_u128(0),
             field: "body".to_string(),
-            paragraph: 0,
-            sentence: 0,
+            paragraph_id: Uuid::from_u128(0),
+            start: 0,
+            end: 100
         };
 
         let doc_id1 = VectorIdentifier {
-            doc_id: Uuid::from_u128(0),
+            doc_id: Uuid::from_u128(1),
             field: "body".to_string(),
-            paragraph: 0,
-            sentence: 1,
+            paragraph_id: Uuid::from_u128(1),
+            start: 100,
+            end: 200
         };
 
         /*

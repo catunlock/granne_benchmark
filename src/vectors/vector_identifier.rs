@@ -7,19 +7,23 @@ use uuid::Uuid;
 pub struct VectorIdentifier {
     pub doc_id: Uuid,
     pub field: String,
-    pub paragraph: i32,
-    pub sentence: i32,
+    pub paragraph_id: Uuid,
+    pub start: i32,
+    pub end: i32
 }
 
+// f"{self.rid}/{field_key}/{subfield}/{paragraph.start}-{paragraph.end}"
+// EX: UUID/field1/UUID/20-200
 impl fmt::Display for VectorIdentifier {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(
             f,
-            "{}/{}/{}/{}",
+            "{}/{}/{}/{}-{}",
             self.doc_id.to_string(),
             self.field,
-            self.paragraph,
-            self.sentence
+            self.paragraph_id.to_string(),
+            self.start,
+            self.end
         )
     }
 }

@@ -67,22 +67,25 @@ mod tests {
         let doc_id1 = VectorIdentifier {
             doc_id: Uuid::from_u128(0),
             field: "body".to_string(),
-            paragraph: 0,
-            sentence: 1,
+            paragraph_id: Uuid::from_u128(0),
+            start: 0,
+            end: 100
         };
 
         let doc_id2 = VectorIdentifier {
-            doc_id: Uuid::from_u128(0),
+            doc_id: Uuid::from_u128(1),
             field: "body".to_string(),
-            paragraph: 0,
-            sentence: 2,
+            paragraph_id: Uuid::from_u128(1),
+            start: 100,
+            end: 200
         };
 
         let doc_id3 = VectorIdentifier {
-            doc_id: Uuid::from_u128(0),
+            doc_id: Uuid::from_u128(2),
             field: "body".to_string(),
-            paragraph: 0,
-            sentence: 3,
+            paragraph_id: Uuid::from_u128(0),
+            start: 0,
+            end: 100
         };
 
         writer.push(&doc_id1, &create_vector(3, 1.0)).unwrap();
@@ -112,8 +115,9 @@ mod tests {
         let doc_id1 = VectorIdentifier {
             doc_id: Uuid::from_u128(0),
             field: "body".to_string(),
-            paragraph: 0,
-            sentence: 1,
+            paragraph_id: Uuid::from_u128(0),
+            start: 0,
+            end: 100
         };
 
         writer.push(&doc_id1, &create_vector(3, 1.0)).unwrap();
@@ -132,12 +136,15 @@ mod tests {
         );
 
         info!("Results: {:?}", res);
+
         let doc_id2 = VectorIdentifier {
-            doc_id: Uuid::from_u128(0),
+            doc_id: Uuid::from_u128(1),
             field: "body".to_string(),
-            paragraph: 0,
-            sentence: 2,
+            paragraph_id: Uuid::from_u128(1),
+            start: 100,
+            end: 200
         };
+
 
         writer.push(&doc_id2, &create_vector(3, 4.0)).unwrap();
         writer.push(&doc_id2, &create_vector(3, 5.0)).unwrap();
@@ -174,9 +181,11 @@ mod tests {
             let doc_id1 = VectorIdentifier {
                 doc_id: Uuid::from_u128(0),
                 field: "body".to_string(),
-                paragraph: 0,
-                sentence: 1,
+                paragraph_id: Uuid::from_u128(0),
+                start: 0,
+                end: 100
             };
+
 
             let mut writer = Writer::open(tmp1).unwrap();
             for i in 0..500 {
@@ -208,8 +217,9 @@ mod tests {
             let doc_id = VectorIdentifier {
                 doc_id: Uuid::from_u128(0),
                 field: "body".to_string(),
-                paragraph: 0,
-                sentence: i,
+                paragraph_id: Uuid::from_u128(0),
+                start: i,
+                end: i+ 30 
             };
             writer.push(&doc_id, &create_vector(700, i as f32)).unwrap();
         }
@@ -221,8 +231,9 @@ mod tests {
                 let vi = VectorIdentifier {
                     doc_id: Uuid::from_u128(i as u128),
                     field: "body".to_string(),
-                    paragraph: 0,
-                    sentence: 0,
+                    paragraph_id: Uuid::from_u128(0),
+                    start: 0,
+                    end: 0 
                 };
 
                 let vector = create_vector(700, i as f32).into_vec();
