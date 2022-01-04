@@ -69,7 +69,7 @@ mod tests {
             field: "body".to_string(),
             paragraph_id: Uuid::from_u128(0),
             start: 0,
-            end: 100
+            end: 100,
         };
 
         let doc_id2 = VectorIdentifier {
@@ -77,7 +77,7 @@ mod tests {
             field: "body".to_string(),
             paragraph_id: Uuid::from_u128(1),
             start: 100,
-            end: 200
+            end: 200,
         };
 
         let doc_id3 = VectorIdentifier {
@@ -85,7 +85,7 @@ mod tests {
             field: "body".to_string(),
             paragraph_id: Uuid::from_u128(0),
             start: 0,
-            end: 100
+            end: 100,
         };
 
         writer.push(&doc_id1, &create_vector(3, 1.0)).unwrap();
@@ -117,7 +117,7 @@ mod tests {
             field: "body".to_string(),
             paragraph_id: Uuid::from_u128(0),
             start: 0,
-            end: 100
+            end: 100,
         };
 
         writer.push(&doc_id1, &create_vector(3, 1.0)).unwrap();
@@ -142,9 +142,8 @@ mod tests {
             field: "body".to_string(),
             paragraph_id: Uuid::from_u128(1),
             start: 100,
-            end: 200
+            end: 200,
         };
-
 
         writer.push(&doc_id2, &create_vector(3, 4.0)).unwrap();
         writer.push(&doc_id2, &create_vector(3, 5.0)).unwrap();
@@ -183,9 +182,8 @@ mod tests {
                 field: "body".to_string(),
                 paragraph_id: Uuid::from_u128(0),
                 start: 0,
-                end: 100
+                end: 100,
             };
-
 
             let mut writer = Writer::open(tmp1).unwrap();
             for i in 0..500 {
@@ -219,7 +217,7 @@ mod tests {
                 field: "body".to_string(),
                 paragraph_id: Uuid::from_u128(0),
                 start: i,
-                end: i+ 30 
+                end: i + 30,
             };
             writer.push(&doc_id, &create_vector(700, i as f32)).unwrap();
         }
@@ -233,7 +231,7 @@ mod tests {
                     field: "body".to_string(),
                     paragraph_id: Uuid::from_u128(0),
                     start: 0,
-                    end: 0 
+                    end: 0,
                 };
 
                 let vector = create_vector(700, i as f32).into_vec();

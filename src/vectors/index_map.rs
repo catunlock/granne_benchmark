@@ -193,7 +193,7 @@ mod test {
             field: "body".to_string(),
             paragraph_id: Uuid::from_u128(0),
             start: 0,
-            end: 100
+            end: 100,
         };
 
         let doc_id1 = VectorIdentifier {
@@ -201,7 +201,7 @@ mod test {
             field: "body".to_string(),
             paragraph_id: Uuid::from_u128(1),
             start: 100,
-            end: 200
+            end: 200,
         };
 
         map.insert(&doc_id0, 0).unwrap();
@@ -227,7 +227,7 @@ mod test {
             field: "body".to_string(),
             paragraph_id: Uuid::from_u128(0),
             start: 0,
-            end: 100
+            end: 100,
         };
 
         let doc_id1 = VectorIdentifier {
@@ -235,7 +235,7 @@ mod test {
             field: "body".to_string(),
             paragraph_id: Uuid::from_u128(1),
             start: 100,
-            end: 200
+            end: 200,
         };
 
         map.insert(&doc_id0, 0).unwrap();
@@ -268,7 +268,7 @@ mod test {
             field: "body".to_string(),
             paragraph_id: Uuid::from_u128(0),
             start: 0,
-            end: 100
+            end: 100,
         };
 
         let doc_id1 = VectorIdentifier {
@@ -276,7 +276,7 @@ mod test {
             field: "body".to_string(),
             paragraph_id: Uuid::from_u128(1),
             start: 100,
-            end: 200
+            end: 200,
         };
 
         map.insert(&doc_id0, 0).unwrap();
@@ -315,7 +315,7 @@ mod test {
             field: "body".to_string(),
             paragraph_id: Uuid::from_u128(0),
             start: 0,
-            end: 100
+            end: 100,
         };
 
         let doc_id1 = VectorIdentifier {
@@ -323,7 +323,7 @@ mod test {
             field: "body".to_string(),
             paragraph_id: Uuid::from_u128(1),
             start: 100,
-            end: 200
+            end: 200,
         };
 
         /*

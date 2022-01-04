@@ -1,4 +1,4 @@
-use futures::{future::join_all};
+use futures::future::join_all;
 use granne::{
     angular::{self, Vector},
     BuildConfig, Builder, Granne, GranneBuilder,
