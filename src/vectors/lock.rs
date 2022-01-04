@@ -36,7 +36,7 @@ impl Lock {
                 Ok(())
             }
             Err(e) => {
-                let message = format!("Error setting dirty file: {}", e.to_string());
+                let message = format!("Error setting dirty file: {}", e);
                 error!("{}", message);
                 Err(message)
             }

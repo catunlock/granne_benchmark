@@ -38,9 +38,9 @@ impl fmt::Display for VectorIdentifier {
         write!(
             f,
             "{}/{}/{}/{}-{}",
-            self.doc_id.to_string(),
+            self.doc_id,
             self.field,
-            self.paragraph_id.to_string(),
+            self.paragraph_id,
             self.start,
             self.end
         )
